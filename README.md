@@ -7,6 +7,11 @@
 
 Emacs frontend for weather web service [wttr.in].
 
+This fork has the following patches applied (still outstanding in bcbcarl/emacs-wttrin): 
+- patch for selecting the unit system: https://github.com/bcbcarl/emacs-wttrin/pull/10
+- patch for url request to return ascii rather than html https://github.com/bcbcarl/emacs-wttrin/pull/18
+- patch to use https instead of http: https://github.com/bcbcarl/emacs-wttrin/pull/15
+
 ## Usage
 
 Set a default cities list for completion:
@@ -20,7 +25,11 @@ You can also specify default HTTP request Header for Accept-Language:
 ```elisp
 (setq wttrin-default-accept-language '("Accept-Language" . "zh-TW"))
 ```
+As well as the unit system, "m" for metric and "u" for USCS/imperial (the default is to choose based on your location):
 
+```elisp
+(setq wttrin-unit-system "m")
+```
 Then run `M-x wttrin` to get the information.
 
 When the weather is displayed you can press `q` to quit the buffer or `g` to query for another city.
