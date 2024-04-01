@@ -58,14 +58,9 @@
   :group 'wttrin
   :type '(cons (string :tag "Header") (string :tag "Language codes")))
 
-(defcustom wttrin-default-accept-language '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
-  "Specify default HTTP request Header for Accept-Language."
-  :group 'wttrin
-  :type '(list))
-
 (defcustom wttrin-unit-system nil
   "Specify units of measurement.
-Use 'm' for 'metric', 'u' for 'USCS, or nil for location based units (default)."
+Use \='m\=' for \='metric\=', \='u\=' for \='USCS\=', or nil for location based units (default)."
   :group 'wttrin
   :type 'string)
 

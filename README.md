@@ -8,8 +8,7 @@ This fork has a few minor improvements:
 - On location re-query, the original weather buffer is closed, reducing buffer clutter.
 - The license has changed from the MIT license to the GNU General Public License Version 3.
 
-In addition, this fork applies the following patches (outstanding in bcbcarl/emacs-wttrin):
-user-agent and mime-language-string were not as expected by the server
+In addition, this fork applies the following patches (from bcbcarl/emacs-wttrin):
 - [patch to request the return ascii instead of html](https://github.com/bcbcarl/emacs-wttrin/pull/18) from brannala
 - [patch to select the unit system](https://github.com/bcbcarl/emacs-wttrin/pull/10) from RJTK
 - [patch to use https instead of http](https://github.com/bcbcarl/emacs-wttrin/pull/15) from relrod
@@ -18,7 +17,7 @@ All changes have been manually validated as working as of Monday, April 01, 2024
 
 Bug reports and PRs are welcome. Enjoy!
 
-## Usage
+## USAGE
 
 Set a default cities list for completion:
 
@@ -47,7 +46,7 @@ If you want the weather to display in a monospaced font other than your default,
 You can specify the font height as well:
 
 ```elisp
-(setq wttrin-font-name "Liberation Mono")
+(setq wttrin-font-height 120)
 ```
 
 Then run `M-x wttrin` to display the weather.
@@ -55,6 +54,40 @@ Then run `M-x wttrin` to display the weather.
 After the weather is displayed you may press `q` to quit the buffer or `g` to query the weather for another location.
 
 ![screenshot](wttrin.png)
+
+## INSTALLATION
+
+Since the versions on Melpa and Melpa-stable are broken and abandoned versions, you should avoid installing this package from those repositories. Instead you can install manually.
+
+- Clone this repository
+- Add the following in your Emacs config file:
+
+```emacs-lisp
+(add-to-list 'load-path "/path/to/the/cloned/emacs-wttrin")
+(require 'wttrin)
+...
+```
+
+or in use-package format:
+
+```emacs-lisp
+(use-package wttrin
+   :load-path ""/path/to/the/cloned/emacs-wttrin"
+   ...)
+```
+
+Of if you are using straight, the recipe will be similar to:
+
+```emacs-lisp
+(straight-use-package
+ '(wttrin :type git
+		  :host github
+		  :repo "bcbcarl/emacs-wttrin"
+		  :fork (:host github
+				 :repo "cjennings/emacs-wttrin")))
+```
+
+I will contact the Melpa maintainers and update this package with a working version soon.
 
 ## LICENSE
 
