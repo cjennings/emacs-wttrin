@@ -24,33 +24,38 @@ Enjoy!
 Set a default cities list for completion:
 
 ```elisp
-(setq wttrin-default-cities '( "Berkeley, California" "Taipei, Taiwan" "Tainan, Taiwan"))```
+(setq wttrin-default-cities '( "Berkeley, California" "Taipei, Taiwan" "Tainan, Taiwan"))
+```
 
 You can also specify default HTTP request Header for Accept-Language:
 
 ```elisp
-(setq wttrin-default-accept-language '("Accept-Language" . "zh-TW")))```
+(setq wttrin-default-accept-language '("Accept-Language" . "zh-TW")))
+```
 
 As well as the unit system, "m" for metric and "u" for USCS/imperial (the default is to choose based on your location):
 
 ```elisp
-(setq wttrin-unit-system "m")```
+(setq wttrin-unit-system "m")
+```
 
 If you want the weather to display in a monospaced font other than your default, you may specify it:
 
 ```elisp
-(setq wttrin-font-name "Hack Nerd Font Mono")```
+(setq wttrin-font-name "Hack Nerd Font Mono")
+```
 
 You can specify the font height as well:
 
 ```elisp
-(setq wttrin-font-name "Liberation Mono")```
+(setq wttrin-font-name "Liberation Mono")
+```
 
 Then run `M-x wttrin` to display the weather.
 
 After the weather is displayed you may press `q` to quit the buffer or `g` to query the weather for another location.
 
-![screenshot](https://raw.githubusercontent.com/cjennings/emacs-wttrin/master/wttrin.png?raw=true)
+![screenshot](wttrin.png)
 
 ## LICENSE
 
