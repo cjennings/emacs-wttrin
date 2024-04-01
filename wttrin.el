@@ -1,17 +1,17 @@
-;;; wttrin.el --- Emacs Frontend for Weather WWeb Service wttr.in -*- lexical-binding: t; -*-
+;;; wttrin.el --- Emacs Frontend for the Weather Web Service wttr.in -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2024 Craig Jennings
 ;; Maintainer: Craig Jennings <c@cjennings.net>
 ;;
 ;; Original Authors: Carl X. Su <bcbcarl@gmail.com>
 ;;                   ono hiroko (kuanyui) <azazabc123@gmail.com>
-;; Version: 0.2.1
+;; Version: 0.2.3
 ;; Package-Requires: ((emacs "24.4") (xterm-color "1.0"))
-;; Keywords: weather, wttrin
+;; Keywords: weather, wttrin, games
 ;; URL: https://github.com/cjennings/emacs-wttrin
 
 ;;; Commentary:
-;; Provides the weather information from wttr.in based on your query condition.
+;; Displays the weather information from the wttr.in service for your submitted location.
 
 ;;; Code:
 
@@ -19,11 +19,11 @@
 (require 'xterm-color) ;; https://github.com/atomontage/xterm-color
 
 (defgroup wttrin nil
-  "Emacs frontend for weather web service wttr.in."
+  "Emacs frontend for the weather web service wttr.in."
   :prefix "wttrin-"
   :group 'comm)
 
-(defcustom wttrin-font-name "Liberation Mono"
+(defcustom wttrin-font-name "Lucida Console"
   "Preferred monospaced font name for weather display."
   :group 'wttrin
   :type 'string)
@@ -46,12 +46,17 @@
                                    "Berlin, Germany"
                                    "Naples, Italy"
                                    "Athens, Greece"
-								   "Kyiv, Ukraine"
-								   "Tainan, Taiwan"
+                                   "Kyiv, Ukraine"
+                                   "Tainan, Taiwan"
                                    "Taipei, Taiwan")
   "Specify default cities list for quick completion."
   :group 'wttrin
-  :type 'list)
+  :type '(repeat string))
+
+(defcustom wttrin-default-accept-language '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
+  "Specify default HTTP request Header for Accept-Language."
+  :group 'wttrin
+  :type '(cons (string :tag "Header") (string :tag "Language codes")))
 
 (defcustom wttrin-default-accept-language '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
   "Specify default HTTP request Header for Accept-Language."
@@ -75,7 +80,7 @@ Use 'm' for 'metric', 'u' for 'USCS, or nil for location based units (default)."
     (with-current-buffer
         (url-retrieve-synchronously
          (concat "http://wttr.in/" query "?A")
-         (lambda (status) (switch-to-buffer (current-buffer))))
+		 (lambda () (switch-to-buffer (current-buffer))))
       (decode-coding-string (buffer-string) 'utf-8))))
 
 (defun wttrin-exit ()
@@ -93,7 +98,7 @@ Use 'm' for 'metric', 'u' for 'USCS, or nil for location based units (default)."
   "Query weather of CITY-NAME via wttrin, and display the result in new buffer."
   (let ((raw-string (wttrin-fetch-raw-string city-name)))
     (if (string-match "ERROR" raw-string)
-		(message "Cannot retrieve weather data. Perhaps the location was misspelled?")
+        (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
       (let ((buffer (get-buffer-create (format "*wttr.in - %s*" city-name))))
         (switch-to-buffer buffer)
         (setq buffer-read-only nil)
@@ -103,28 +108,27 @@ Use 'm' for 'metric', 'u' for 'USCS, or nil for location based units (default)."
         (setq buffer-face-mode-face `(:family  ,wttrin-font-name :height  ,wttrin-font-height))
         (buffer-face-mode t)
 
-		;; insert weather data
-		(insert (xterm-color-filter raw-string))
+        ;; insert weather data
+        (insert (xterm-color-filter raw-string))
 
-		;; remove all info lines except date and location
-		(goto-char (point-min))
-		(kill-whole-line 4)
-		(forward-line)
-		(kill-whole-line)
+        ;; remove all info lines except date and location
+        (goto-char (point-min))
+        (kill-whole-line 4)
+        (forward-line)
+        (kill-whole-line)
 
-		;; provide user instructions
+        ;; provide user instructions
         (goto-char (point-max))
         (insert "\n")
         (insert "Press 'g' for another location's weather, 'q' to quit.")
 
-		;; align buffer to top
+        ;; align buffer to top
         (goto-char (point-min))
 
-		;; create choice keymap and disallow modifying buffer
+        ;; create choice keymap and disallow modifying buffer
         (use-local-map (make-sparse-keymap))
         (local-set-key "q" 'wttrin-exit)
-		(local-set-key "g" 'wttrin-restart)
-
+        (local-set-key "g" 'wttrin-restart)
         (setq buffer-read-only t)))))
 
 ;;;###autoload
