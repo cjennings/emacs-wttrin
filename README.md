@@ -9,15 +9,14 @@ This fork has a few minor improvements:
 - The license has changed from the MIT license to the GNU General Public License Version 3.
 
 In addition, this fork applies the following patches (outstanding in bcbcarl/emacs-wttrin):
-- [patch to selecting the unit system](https://github.com/bcbcarl/emacs-wttrin/pull/10)
-- [patch to request the return ascii instead of html](https://github.com/bcbcarl/emacs-wttrin/pull/18)
-- [patch to use https instead of http](https://github.com/bcbcarl/emacs-wttrin/pull/15)
+user-agent and mime-language-string were not as expected by the server
+- [patch to request the return ascii instead of html](https://github.com/bcbcarl/emacs-wttrin/pull/18) from brannala
+- [patch to select the unit system](https://github.com/bcbcarl/emacs-wttrin/pull/10) from RJTK
+- [patch to use https instead of http](https://github.com/bcbcarl/emacs-wttrin/pull/15) from relrod
 
-All changes have been tested and are working as of Monday, April 01, 2024.
+All changes have been manually validated as working as of Monday, April 01, 2024 (not kidding). Automatic CI tests forthcoming.
 
-Bug reports and PRs are welcome.
-
-Enjoy!
+Bug reports and PRs are welcome. Enjoy!
 
 ## Usage
 
