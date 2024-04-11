@@ -11,7 +11,8 @@
 ;; URL: https://github.com/cjennings/emacs-wttrin
 
 ;;; Commentary:
-;; Displays the weather information from the wttr.in service for your submitted location.
+;; Displays the weather information from the wttr.in service for your submitted
+;; location.
 
 ;;; Code:
 
@@ -38,18 +39,19 @@
   "Default face for the weather display buffer."
   :group 'wttrin)
 
-(defcustom wttrin-default-cities '("Berkeley, California"
-                                   "New Orleans, Louisiana"
-                                   "New York, New York"
-                                   "London, England"
-                                   "Paris, France"
-                                   "Berlin, Germany"
-                                   "Naples, Italy"
-                                   "Athens, Greece"
-                                   "Kyiv, Ukraine"
-                                   "Tainan, Taiwan"
-                                   "Taipei, Taiwan")
-  "Specify default cities list for quick completion."
+(defcustom wttrin-default-locations '("Honolulu, HI"
+									  "Berkeley, CA"
+									  "New Orleans, LA"
+									  "New York, NY"
+                                      "London, GB"
+                                      "Paris, FR"
+                                      "Berlin, DE"
+                                      "Naples, IT"
+                                      "Athens, GR"
+									  "Kyiv, UA"
+									  "Tokyo, JP"
+                                      "Taipei, TW")
+  "Specify default locations list for quick completion."
   :group 'wttrin
   :type '(repeat string))
 
@@ -75,7 +77,7 @@ Use \='m\=' for \='metric\=', \='u\=' for \='USCS\=', or nil for location based 
     (with-current-buffer
         (url-retrieve-synchronously
          (concat "http://wttr.in/" query "?A")
-		 (lambda () (switch-to-buffer (current-buffer))))
+         (lambda () (switch-to-buffer (current-buffer))))
       (decode-coding-string (buffer-string) 'utf-8))))
 
 (defun wttrin-exit ()
@@ -83,58 +85,71 @@ Use \='m\=' for \='metric\=', \='u\=' for \='USCS\=', or nil for location based 
   (interactive)
   (quit-window t))
 
-(defun wttrin-restart ()
-  "Kill buffer and restart wttrin."
+(defun wttrin-requery ()
+  "Kill buffer and requery wttrin."
   (interactive)
-  (kill-buffer)
-  (call-interactively 'wttrin))
+  (let ((new-location (completing-read "Location Name: " wttrin-default-locations nil nil
+                                       (when (= (length wttrin-default-locations) 1)
+                                         (car wttrin-default-locations)))))
+    (when (get-buffer "*wttr.in*")
+      (kill-buffer "*wttr.in*"))
+    (wttrin-query new-location)))
 
-(defun wttrin-query (city-name)
-  "Query weather of CITY-NAME via wttrin, and display the result in new buffer."
-  (let ((raw-string (wttrin-fetch-raw-string city-name)))
+(defun wttrin-query (location-name)
+  "Query weather of LOCATION-NAME via wttrin, and display the result in new buffer."
+  (let ((raw-string (wttrin-fetch-raw-string location-name)))
     (if (string-match "ERROR" raw-string)
         (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
-      (let ((buffer (get-buffer-create (format "*wttr.in - %s*" city-name))))
+      (let ((buffer (get-buffer-create (format "*wttr.in*"))))
         (switch-to-buffer buffer)
         (setq buffer-read-only nil)
         (erase-buffer)
 
         ;; set the preferred font attributes for this buffer only
         (setq buffer-face-mode-face `(:family  ,wttrin-font-name :height  ,wttrin-font-height))
-        (buffer-face-mode t)
 
-        ;; insert weather data
+        ;; dispay buffer text and insert wttr.in data
+        (buffer-face-mode t)
         (insert (xterm-color-filter raw-string))
 
-        ;; remove all info lines except date and location
+        ;; rearrange header information
         (goto-char (point-min))
-        (kill-whole-line 4)
-        (forward-line)
-        (kill-whole-line)
+        (goto-line 5)
+        (setq date-time-stamp (buffer-substring-no-properties
+                               (line-beginning-position)
+                               (line-end-position)))
+        (goto-line 7)
+        (setq location-info (buffer-substring-no-properties
+                             (line-beginning-position)
+                             (line-end-position)))
+        (goto-line 9)
+        (delete-region (point-min)(line-beginning-position))
+        (insert "\n" location-info "\n" date-time-stamp"\n\n\n")
 
         ;; provide user instructions
         (goto-char (point-max))
         (insert "\n")
-        (insert "Press 'g' for another location's weather, 'q' to quit.")
+		(insert "Press: [g] to query another location\n")
+        (insert "       [q] to quit\n")
 
         ;; align buffer to top
         (goto-char (point-min))
 
         ;; create choice keymap and disallow modifying buffer
         (use-local-map (make-sparse-keymap))
-        (local-set-key "q" 'wttrin-exit)
-        (local-set-key "g" 'wttrin-restart)
+		(local-set-key "q" 'wttrin-exit)
+        (local-set-key "g" 'wttrin-requery)
         (setq buffer-read-only t)))))
 
 ;;;###autoload
-(defun wttrin (city)
-  "Display weather information for CITY."
+(defun wttrin (location)
+  "Display weather information for LOCATION."
   (interactive
    (list
-    (completing-read "City Name: " wttrin-default-cities nil nil
-                     (when (= (length wttrin-default-cities) 1)
-                       (car wttrin-default-cities)))))
-  (wttrin-query city))
+    (completing-read "Location Name: " wttrin-default-locations nil nil
+                     (when (= (length wttrin-default-locations) 1)
+                       (car wttrin-default-locations)))))
+  (wttrin-query location))
 
 (provide 'wttrin)
 ;;; wttrin.el ends here
