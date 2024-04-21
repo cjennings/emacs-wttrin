@@ -1,4 +1,4 @@
-;;; wttrin.el --- Emacs Frontend for the Weather Web Service wttr.in -*- lexical-binding: t; -*-
+;;; wttrin.el --- Emacs Frontend for Service wttr.in -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2024 Craig Jennings
 ;; Maintainer: Craig Jennings <c@cjennings.net>
@@ -33,6 +33,7 @@
 
 ;;; Code:
 
+(require 'face-remap)
 (require 'url)
 (require 'xterm-color) ;; https://github.com/atomontage/xterm-color
 
@@ -72,7 +73,8 @@
   :group 'wttrin
   :type '(repeat string))
 
-(defcustom wttrin-default-accept-language '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
+(defcustom wttrin-default-accept-language
+  '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
   "Specify default HTTP request Header for Accept-Language."
   :group 'wttrin
   :type '(cons (string :tag "Header") (string :tag "Language codes")))
@@ -106,58 +108,62 @@ units (default)."
 (defun wttrin-requery ()
   "Kill buffer and requery wttrin."
   (interactive)
-  (let ((new-location (completing-read "Location Name: " wttrin-default-locations nil nil
-                                       (when (= (length wttrin-default-locations) 1)
-                                         (car wttrin-default-locations)))))
+  (let ((new-location (completing-read
+                       "Location Name: " wttrin-default-locations nil nil
+                       (when (= (length wttrin-default-locations) 1)
+                         (car wttrin-default-locations)))))
     (when (get-buffer "*wttr.in*")
       (kill-buffer "*wttr.in*"))
     (wttrin-query new-location)))
 
 (defun wttrin-query (location-name)
-  "Query weather of LOCATION-NAME via wttrin, and display the result in new buffer."
+  "Query weather of LOCATION-NAME via wttrin, display the result in new buffer."
   (let ((raw-string (wttrin-fetch-raw-string location-name)))
-    (if (string-match "ERROR" raw-string)
-        (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
-      (let ((buffer (get-buffer-create (format "*wttr.in*"))))
-        (switch-to-buffer buffer)
-        (setq buffer-read-only nil)
-        (erase-buffer)
+	(if (string-match "ERROR" raw-string)
+		(message "Cannot retrieve weather data. Perhaps the location was
+misspelled?")
+	  (let ((buffer (get-buffer-create (format "*wttr.in*")))
+			date-time-stamp location-info)
+		(switch-to-buffer buffer)
+		(setq buffer-read-only nil)
+		(erase-buffer)
 
-        ;; set the preferred font attributes for this buffer only
-        (setq buffer-face-mode-face `(:family  ,wttrin-font-name :height  ,wttrin-font-height))
+		;; set the preferred font attributes for this buffer only
+		(setq buffer-face-mode-face `(:family ,wttrin-font-name :height
+											  ,wttrin-font-height))
 
-        ;; dispay buffer text and insert wttr.in data
-        (buffer-face-mode t)
-        (insert (xterm-color-filter raw-string))
+		;; display buffer text and insert wttr.in data
+		(buffer-face-mode t)
+		(insert (xterm-color-filter raw-string))
 
-        ;; rearrange header information
-        (goto-char (point-min))
-        (goto-line 5)
-        (setq date-time-stamp (buffer-substring-no-properties
-                               (line-beginning-position)
-                               (line-end-position)))
-        (goto-line 7)
-        (setq location-info (buffer-substring-no-properties
-                             (line-beginning-position)
-                             (line-end-position)))
-        (goto-line 9)
-        (delete-region (point-min)(line-beginning-position))
-        (insert "\n" location-info "\n" date-time-stamp"\n\n\n")
+		;; rearrange header information
+		(goto-char (point-min))
+		(forward-line 4)
+		(setq date-time-stamp (buffer-substring-no-properties
+							   (line-beginning-position) (line-end-position)))
+		(goto-char (point-min))
+		(forward-line 6)
+		(setq location-info (buffer-substring-no-properties
+							 (line-beginning-position) (line-end-position)))
+		(goto-char (point-min))
+		(forward-line 8)
+		(delete-region (point-min) (line-beginning-position))
 
-        ;; provide user instructions
-        (goto-char (point-max))
-        (insert "\n")
-		(insert "Press: [g] to query another location\n")
-        (insert "       [q] to quit\n")
+		(insert "\n" location-info "\n" date-time-stamp "\n\n\n")
 
-        ;; align buffer to top
-        (goto-char (point-min))
+		;; provide user instructions
+		(goto-char (point-max))
+		(insert "\nPress: [g] to query another location\n")
+		(insert "       [q] to quit\n")
 
-        ;; create choice keymap and disallow modifying buffer
-        (use-local-map (make-sparse-keymap))
+		;; align buffer to top
+		(goto-char (point-min))
+
+		;; create choice keymap and disallow modifying buffer
+		(use-local-map (make-sparse-keymap))
 		(local-set-key "q" 'wttrin-exit)
-        (local-set-key "g" 'wttrin-requery)
-        (setq buffer-read-only t)))))
+		(local-set-key "g" 'wttrin-requery)
+		(setq buffer-read-only t)))))
 
 ;;;###autoload
 (defun wttrin (location)
