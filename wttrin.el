@@ -79,7 +79,8 @@
 
 (defcustom wttrin-unit-system nil
   "Specify units of measurement.
-Use \='m\=' for \='metric\=', \='u\=' for \='USCS\=', or nil for location based units (default)."
+Use \='m\=' for \='metric\=', \='u\=' for \='USCS\=', or nil for location based
+units (default)."
   :group 'wttrin
   :type 'string)
 
