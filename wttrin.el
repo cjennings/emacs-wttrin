@@ -42,7 +42,7 @@
   :prefix "wttrin-"
   :group 'comm)
 
-(defcustom wttrin-font-name "Lucida Console"
+(defcustom wttrin-font-name "Liberation Mono"
   "Preferred monospaced font name for weather display."
   :group 'wttrin
   :type 'string)
@@ -73,7 +73,7 @@
   :group 'wttrin
   :type '(repeat string))
 
-(defcustom wttrin-default-accept-language
+(defcustom wttrin-default-languages
   '("Accept-Language" . "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4")
   "Specify default HTTP request Header for Accept-Language."
   :group 'wttrin
@@ -93,7 +93,7 @@ units (default)."
 (defun wttrin-fetch-raw-string (query)
   "Get the weather information based on your QUERY."
   (let ((url-user-agent "curl"))
-    (add-to-list 'url-request-extra-headers wttrin-default-accept-language)
+	(add-to-list 'url-request-extra-headers wttrin-default-languages)
     (with-current-buffer
         (url-retrieve-synchronously
          (concat "http://wttr.in/" query "?A")
