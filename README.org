@@ -1,0 +1,148 @@
+* Wttrin for Emacs
+
+[[#installation][Installation]] | [[#usage][Usage]] | [[#customization][Customization]] | [[#history][History]] | [[#license][License]]
+
+[[https://www.gnu.org/software/emacs/][file:assets/made-for-emacs-badge.svg]]
+[[https://melpa.org/#/wttrin][file:https://melpa.org/packages/wttrin-badge.svg]]
+[[https://stable.melpa.org/#/wttrin][file:https://stable.melpa.org/packages/wttrin-badge.svg]]
+
+Wttrin is a simple Emacs frontend for Igor Chubin's popular Weather Web Service [[https://github.com/chubin/wttr.in][wttr.in]].
+
+[[assets/wttrin.png]]
+
+
+" /A change in the weather is sufficient to recreate the world and ourselves./ "
+- /Marcel Proust, The Guermantes Way/
+
+** Installation
+*** Package Install and Use-Package
+Wttrin is on [[https://melpa.org/][MELPA]] and [[https://stable.melpa.org/#/][MELPA Stable]], so I recommend adding a use-package declaration to your Emacs init file. Installing Wttrin, assigning a keybinding, and customizing the location list is as simple as adding the following code and evaluating it.
+
+#+begin_src emacs-lisp
+  (use-package wttrin
+    :ensure t
+    :commands (wttrin)
+    :bind ("C-c w" . wttrin)
+    :custom
+    (wttrin-default-locations '("Bondi Beach" "Taghazout" "Tamarindo" "Huntington Beach")))
+#+end_src
+
+With the cursor after the last closing parentheses, press "C-x C-e". Emacs will start the install, assign the keybinding, set the location list, and you'll be ready to go.
+
+*** Quelpa
+If you typically use Quelpa to install the bleeding edge, here's what to put in your Emacs init:
+
+#+begin_src emacs-lisp
+  (quelpa '(wttrin
+            :fetcher github :repo "cjennings/emacs-wttrin"))
+  (define-key global-map (kbd "C-c w") 'wttrin)
+#+end_src
+
+Wttrin is pulled to MELPA repositories regularly, so using Quelpa for Wttrin may provide no advantage over use-package. Regardless, Wttrin's main branch should always be stable.
+
+*** Straight
+For the Elisp hackers using Straight for lockfiles or for easy hacking on bug fix PRs, you probably don't need me to tell you what to put in your Emacs init, but here's the code anyway.
+
+#+begin_src emacs-lisp
+  (straight-use-package
+   '(wttrin :type git :host github :repo "cjennings/emacs-wttrin"))
+#+end_src
+
+*** Manual
+Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. If you're manually installing Wttrin, you'll need to install the xterm-color package as well.
+
+1. Clone or download both the xterm-color and Wttrin repositories.
+
+#+begin_src sh
+  git clone https://github.com/atomontage/xterm-color.git
+  git clone https://github.com/cjennings/emacs-wttrin.git
+#+end_src
+
+2. Add the following to your Emacs init file:
+
+#+begin_src elisp
+  (add-to-list 'load-path "/path/to/cloned/repo/emacs-wttrin")
+  (add-to-list 'load-path "/path/to/cloned/repo/xterm-color")
+  (require 'xterm-color)
+  (require 'wttrin)
+  (define-key global-map (kbd "C-c w") 'wttrin)
+#+end_src
+
+3. Select those five statements and run M-x eval-region to load the package and set the keybinding.
+
+** Usage
+Simply use the keybinding you assigned, or run `M-x wttrin` to display the weather. A list of locations will display.
+
+[[assets/location-menu.png]]
+
+Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `g` to check another location or `q` to exit, just like it says in the buffer.
+
+** Customization
+Wttrin can be customized using the built-in Emacs Customize interface. To do this, type M-x customize ⏎ wttrin ⏎ and use the UI. However, it's more portable and reproducible to keep the customizations in your init file, so do that.
+
+*** Default Location List
+
+Most people will just want to add a bunch of cities to the location list. However, you should know you can check the weather for places that aren't cities, so here's an example showing several ways to add locations to Wttrin.
+
+#+begin_src emacs-lisp
+  (setq wttrin-default-locations
+        '("Berkeley, CA"            ;; City and State (to disambiguate)
+          "Wellington, New Zealand" ;; City and Country Name
+          "~Big+Ben"                ;; The Landmark in London, not whomever you're thinking of
+          "70116"                   ;; Zip Code for the French Quarter, New Orleans
+          "BCN"                     ;; Airport Code for Barcelona
+          "41.89,12.48"))           ;; GPS Coordinates for Rome
+#+end_src
+
+*** Default Language
+Customizing 'wttrin-default-languages' allows users to tell Wttrin which language to request for the text it displays. For instance, this changes the language used for days of the week, periods of the day, and other related text.
+
+Wttrin's default is currently: "en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4",
+
+This means Wttrin defaults to American English, then falls back to any other type of English, Simplified Chinese, then finally any other type of Chinese. Of course that doesn't even begin to account for everyone's use case, so here's what you need to know to customize this.
+
+Language codes usually follow the format of a primary language tag in lowercase (like "en" for English, "fr" for French, "zh" for Chinese), optionally with a region subtag in capitals (like "US" for United States or "CN" for China). If you use both, add a hyphen between them. You can enter just "en", but you may want to enter "en-GB" to avoid seeing how we trash the King's English on this side of the pond.
+
+To have Wttrin render in Traditional Chinese:
+
+#+begin_src emacs-lisp
+  (setq wttrin-default-languages '("Accept-Language" . "zh-TW"))
+#+end_src
+
+And to have Wttrin render in  French:
+
+#+begin_src emacs-lisp
+  (setq wttrin-default-languages '("Accept-Language" . "fr-FR"))
+#+end_src
+
+Where to look up language codes? The IETF's BCP 47 official reference is online [[https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry][here]]. But those who were quick to open that link now know why I recommend another search interface: https://r12a.github.io/app-subtags/
+
+*** Display Font and Size
+The default font is "Liberation Mono" because it's libre and ubiquitous on Linux distributions. Don't worry, Emacs will find another monospaced font if that one's not installed. However, if you need to use your favorite monospaced font so Wttrin blends in with the rest of your Emacs Feng Shui, here you go:
+
+#+begin_src emacs-lisp
+  (setq wttrin-font-name "Hack Nerd Font Mono")
+#+end_src
+
+You can change the font size by changing the font height. The default is 110. Note that Emacs uses the "canonical character height", which is 1/10th of a font point. For example, if you want a 12 point font size, you'd choose a font-height of 120.
+
+#+begin_src emacs-lisp
+  (setq wttrin-font-height 120)
+#+end_src
+
+*** Unit System
+Wttrin's default is to select the unit system appropriate for the location you query. Some may want the units they're familiar for the weather in all locations.
+
+#+begin_src emacs-lisp
+  (setq wttrin-unit-system "m") ;; for Metric units
+  (setq wttrin-unit-system "u") ;; for USCS/Imperial units
+  (setq wttrin-unit-system nil) ;; the default of using units appropriate for the queried location.
+#+end_src
+
+** History
+Wttrin was originally the work of Carl X. Su and Ono Hiroko. All credit and appreciation for the original idea and code is theirs, not mine. Over time the package stopped working due to the inevitablity of bit-rot and Emacs's own evolution. I loved using this package, so I adopted Wttrin to maintain and evolve for the Emacs community, and as thanks to the original authors.
+
+Please consider this repository as Wttrin's new home and I'll throw out a welcome mat. I am grateful for any and all bug reports, enhancement requests, and PRs, so feel free to send them my way.
+
+** License
+GPL-v3.0 or later
