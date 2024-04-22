@@ -115,7 +115,7 @@ And to have Wttrin render in  French:
   (setq wttrin-default-languages '("Accept-Language" . "fr-FR"))
 #+end_src
 
-Where to look up language codes? The IETF's BCP 47 official reference is online [[https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry][here]]. But those who were quick to open that link now know why I recommend another search interface: https://r12a.github.io/app-subtags/
+Where to look up language codes? The IETF's BCP 47 official reference is online [[https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry][here]]. But those who were quick to open that link now know why I recommend [[https://r12a.github.io/app-subtags/][this search interface]].
 
 *** Display Font and Size
 The default font is "Liberation Mono" because it's libre and ubiquitous on Linux distributions. Don't worry, Emacs will find another monospaced font if that one's not installed. However, if you need to use your favorite monospaced font so Wttrin blends in with the rest of your Emacs Feng Shui, here you go:
