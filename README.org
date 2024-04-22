@@ -29,8 +29,16 @@ Wttrin is on [[https://melpa.org/][MELPA]] and [[https://stable.melpa.org/#/][ME
 
 With the cursor after the last closing parentheses, press "C-x C-e". Emacs will start the install, assign the keybinding, set the location list, and you'll be ready to go.
 
+*** Straight
+For the Elisp hackers using Straight for lockfiles or for easy hacking on bug fix PRs, you probably don't need me to tell you what to put in your Emacs init, but here it is anyway.
+
+#+begin_src emacs-lisp
+  (straight-use-package
+   '(wttrin :type git :host github :repo "cjennings/emacs-wttrin"))
+#+end_src
+
 *** Quelpa
-If you typically use Quelpa to install the bleeding edge, here's what to put in your Emacs init:
+If you typically use Quelpa to install from the bleeding edge, here's what to put in your Emacs init:
 
 #+begin_src emacs-lisp
   (quelpa '(wttrin
@@ -38,27 +46,19 @@ If you typically use Quelpa to install the bleeding edge, here's what to put in 
   (define-key global-map (kbd "C-c w") 'wttrin)
 #+end_src
 
-Wttrin is pulled to MELPA repositories regularly, so using Quelpa for Wttrin may provide no advantage over use-package. Regardless, Wttrin's main branch should always be stable.
-
-*** Straight
-For the Elisp hackers using Straight for lockfiles or for easy hacking on bug fix PRs, you probably don't need me to tell you what to put in your Emacs init, but here's the code anyway.
-
-#+begin_src emacs-lisp
-  (straight-use-package
-   '(wttrin :type git :host github :repo "cjennings/emacs-wttrin"))
-#+end_src
+Wttrin is pulled to MELPA repositories regularly, so using Quelpa for Wttrin may provide no advantage over use-package. Regardless, Wttrin's main branch should always be stable, so you'll be fine.
 
 *** Manual
-Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. If you're manually installing Wttrin, you'll need to install the xterm-color package as well.
+Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. If you're manually installing Wttrin, you'll need to install the xterm-color package also.
 
-1. Clone or download both the xterm-color and Wttrin repositories.
+1 - Clone or download both the xterm-color and Wttrin repositories.
 
 #+begin_src sh
   git clone https://github.com/atomontage/xterm-color.git
   git clone https://github.com/cjennings/emacs-wttrin.git
 #+end_src
 
-2. Add the following to your Emacs init file:
+2 - Add the following to your Emacs init file:
 
 #+begin_src elisp
   (add-to-list 'load-path "/path/to/cloned/repo/emacs-wttrin")
@@ -68,7 +68,7 @@ Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-co
   (define-key global-map (kbd "C-c w") 'wttrin)
 #+end_src
 
-3. Select those five statements and run M-x eval-region to load the package and set the keybinding.
+3 - Select those five statements and run M-x eval-region ⏎ to load the package and set the keybinding.
 
 ** Usage
 Simply use the keybinding you assigned, or run `M-x wttrin` to display the weather. A list of locations will display.
