@@ -128,6 +128,9 @@ misspelled?")
 		(setq buffer-read-only nil)
 		(erase-buffer)
 
+		;; Enable `truncate-lines` to avoid garbling the output in small windows
+		(setq truncate-lines t)
+
 		;; set the preferred font attributes for this buffer only
 		(setq buffer-face-mode-face `(:family ,wttrin-font-name :height
 											  ,wttrin-font-height))
