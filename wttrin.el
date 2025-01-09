@@ -132,8 +132,7 @@ misspelled?")
 		(setq truncate-lines t)
 
 		;; set the preferred font attributes for this buffer only
-		(setq buffer-face-mode-face `(:family ,wttrin-font-name :height
-											  ,wttrin-font-height))
+		(setq buffer-face-mode-face 'wttrin-buffer-face)
 
 		;; display buffer text and insert wttr.in data
 		(buffer-face-mode t)
