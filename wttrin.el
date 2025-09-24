@@ -96,7 +96,7 @@ units (default)."
 		(url-user-agent "curl"))
 	(with-current-buffer
 		(url-retrieve-synchronously
-		 (concat "http://wttr.in/" query "?A")
+		 (concat "https://wttr.in/" query "?A")
 		 (lambda () (switch-to-buffer (current-buffer))))
 	  (decode-coding-string (buffer-string) 'utf-8))))
 
