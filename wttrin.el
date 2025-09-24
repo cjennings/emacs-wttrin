@@ -1,4 +1,4 @@
-;;; wttrin.el --- Emacs Frontend for Service wttr.in -*- lexical-binding: t; -*-
+;;; wttrin.el --- Emacs Frontend for Service wttr.in -*- lexical-binding: t; coding: utf-8; -*-
 ;;
 ;; Copyright (C) 2024 Craig Jennings
 ;; Maintainer: Craig Jennings <c@cjennings.net>
