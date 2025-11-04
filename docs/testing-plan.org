@@ -1,0 +1,152 @@
+* WTTRIN Testing Plan
+
+** Methods Analysis
+
+*** Pure Logic Functions (Easy to Test - No Refactoring Needed)
+These functions have no side effects and can be tested directly:
+
+**** =wttrin-additional-url-params= (Line 103)
+- *Purpose*: Concatenates unit system into URL parameter
+- *Current issues*: Has a bug (returns "?" when wttrin-unit-system is nil)
+- *Test categories*:
+  - Normal: wttrin-unit-system = "m", should return "?m"
+  - Normal: wttrin-unit-system = "u", should return "?u"
+  - Boundary: wttrin-unit-system = nil, currently returns "?" (bug!)
+  - Boundary: wttrin-unit-system = "", should return "?"
+  - Error: wttrin-unit-system is number/list (type error)
+
+**** =wttrin--make-cache-key= (Line 183)
+- *Purpose*: Creates cache key from location and settings
+- *Test categories*:
+  - Normal: location + unit system, returns "location|m"
+  - Normal: location with no unit system, returns "location|default"
+  - Boundary: Empty location string
+  - Boundary: Location with special characters (spaces, commas, Unicode)
+  - Error: nil location
+
+**** =wttrin--cleanup-cache-if-needed= (Line 217)
+- *Purpose*: Removes oldest 20% of cache entries when cache exceeds max size
+- *Test categories*:
+  - Normal: Cache at max, removes correct number of oldest entries
+  - Normal: Cache under max, does nothing
+  - Boundary: Cache exactly at max limit
+  - Boundary: Empty cache
+  - Boundary: Cache with 1 entry at max=1
+
+*** Functions Needing Refactoring (Mixed Logic + Side Effects)
+
+**** =wttrin-fetch-raw-string= (Line 107)
+*Current state*: Mixes URL building, network I/O, and decoding
+
+*Refactoring plan*:
+- Create =wttrin--build-url= (pure): Takes query, returns URL string
+- Create =wttrin--fetch-url= (I/O): Takes URL, returns raw response
+- Keep =wttrin-fetch-raw-string= as thin wrapper calling both
+
+*Tests for =wttrin--build-url=*:
+- Normal: query "Paris" → "https://wttr.in/Paris?A"
+- Normal: query with unit system "m" → "https://wttr.in/Paris?mA"
+- Boundary: query with spaces "New York" → properly encoded URL
+- Boundary: query with special chars ",./~" → properly encoded
+- Boundary: Empty query → "https://wttr.in/?A"
+- Error: nil query → error
+
+*Tests for =wttrin--fetch-url=*:
+- Mock url-retrieve-synchronously
+- Normal: successful fetch returns buffer content
+- Error: nil buffer (network failure) → error
+- Error: HTTP error codes (404, 500) → error
+
+**** =wttrin-query= (Line 133)
+*Current state*: Mixes data fetching, parsing, buffer creation, display, keymaps
+
+*Refactoring plan*:
+- Create =wttrin--parse-weather-data= (pure): Takes raw string, returns structured data
+- Create =wttrin--format-weather-buffer= (pure): Takes structured data, returns formatted string
+- Keep =wttrin-query= for buffer/display/keymap setup
+
+*Tests for =wttrin--parse-weather-data=*:
+- Normal: Valid weather data → parsed location, timestamp, body
+- Boundary: Minimal valid data
+- Error: "ERROR" in response → returns nil or signals error
+- Error: Malformed data → handles gracefully
+
+*Tests for =wttrin--format-weather-buffer=*:
+- Normal: Formatted data with location, timestamp, weather
+- Boundary: Empty weather body
+- Boundary: Very long weather data
+
+*** Cache Functions (Testable with Mocking)
+
+**** =wttrin--get-cached-or-fetch= (Line 187)
+*Test categories*:
+- Normal: Cache hit with fresh data → returns cached data
+- Normal: Cache miss → fetches new data and caches it
+- Normal: Cache hit with stale data → fetches new data
+- Boundary: Force refresh bypasses cache
+- Error: Fetch fails, cached data available → returns stale cache
+- Error: Fetch fails, no cached data → propagates error
+
+*** Interactive Functions (Minimal Testing Needed)
+These are thin wrappers around logic - test the logic, not the UI:
+
+- =wttrin= (Line 251) - Just calls wttrin-query with completing-read result
+- =wttrin-exit= (Line 117) - Just calls quit-window
+- =wttrin-requery= (Line 122) - Just prompts and calls wttrin-query
+- =wttrin-requery-force= (Line 240) - Sets flag and calls wttrin-query
+- =wttrin-clear-cache= (Line 231) - Just calls clrhash
+
+** Test File Structure
+
+Following the quality-engineer.org guidelines:
+
+*** Unit Test Files (tests/ directory)
+- =test-wttrin-additional-url-params.el=
+- =test-wttrin--make-cache-key.el=
+- =test-wttrin--cleanup-cache-if-needed.el=
+- =test-wttrin--build-url.el= (after refactoring)
+- =test-wttrin--parse-weather-data.el= (after refactoring)
+- =test-wttrin--format-weather-buffer.el= (after refactoring)
+- =test-wttrin--get-cached-or-fetch.el=
+
+*** Integration Test Files
+- =test-integration-wttrin-cache-workflow.el= (cache hit/miss/refresh)
+- =test-integration-wttrin-fetch-display.el= (fetch → parse → display)
+
+*** Test Utilities
+- =testutil-wttrin.el= (shared test helpers)
+
+** Refactoring Priority
+
+*** Phase 1: Test Pure Functions (No Refactoring Needed)
+1. =wttrin-additional-url-params=
+2. =wttrin--make-cache-key=
+3. =wttrin--cleanup-cache-if-needed=
+
+*** Phase 2: Refactor and Test URL Building
+1. Extract =wttrin--build-url= from =wttrin-fetch-raw-string=
+2. Write tests for =wttrin--build-url=
+3. Extract =wttrin--fetch-url= (I/O portion)
+4. Write tests for =wttrin--fetch-url= (mocked)
+
+*** Phase 3: Refactor and Test Query Logic
+1. Extract =wttrin--parse-weather-data=
+2. Write tests for parsing
+3. Extract =wttrin--format-weather-buffer=
+4. Write tests for formatting
+
+*** Phase 4: Integration Tests
+1. Cache workflow tests
+2. Fetch-to-display workflow tests
+
+** Estimated Test Count
+- Pure functions: ~30 tests
+- Refactored functions: ~40 tests
+- Cache logic: ~15 tests
+- Integration: ~10 tests
+*Total*: ~95 tests
+
+** Session Progress Tracking
+- Session 1 (2025-11-03): Created testing plan, identified functions
+- Session 2: TBD - Start with Phase 1
+- Session 3+: Continue through phases

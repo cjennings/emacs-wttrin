@@ -102,17 +102,38 @@ units (default)."
 
 (defun wttrin-additional-url-params ()
   "Concatenates extra information into the URL."
-  (concat "?" wttrin-unit-system))
+  (if wttrin-unit-system
+      (concat "?" wttrin-unit-system)
+    "?"))
+
+(defun wttrin--build-url (query)
+  "Build wttr.in URL for QUERY with configured parameters.
+This is a pure function with no side effects, suitable for testing."
+  (when (null query)
+    (error "Query cannot be nil"))
+  (concat "https://wttr.in/"
+          (url-hexify-string query)
+          (wttrin-additional-url-params)
+          "A"))
 
 (defun wttrin-fetch-raw-string (query)
-  "Get the weather information based on your QUERY."
-  (let ((url-request-extra-headers (list wttrin-default-languages))
-		(url-user-agent "curl"))
-	(with-current-buffer
-		(url-retrieve-synchronously
-		 (concat "https://wttr.in/" query (wttrin-additional-url-params) "A")
-		 (lambda () (switch-to-buffer (current-buffer))))
-	  (decode-coding-string (buffer-string) 'utf-8))))
+  "Get the weather information based on your QUERY.
+Returns the weather data as a string, or signals an error on failure."
+  (let* ((url (wttrin--build-url query))
+         (url-request-extra-headers (list wttrin-default-languages))
+         (url-user-agent "curl")
+         (buf (url-retrieve-synchronously url t t)))
+    (unless buf
+      (error "wttrin: Network failure - could not retrieve %S" query))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; Skip HTTP headers
+          (goto-char (point-min))
+          (re-search-forward "\r?\n\r?\n" nil t)
+          (decode-coding-string
+           (buffer-substring-no-properties (point) (point-max))
+           'utf-8))
+      (kill-buffer buf))))
 
 (defun wttrin-exit ()
   "Exit the wttrin buffer."
@@ -197,8 +218,7 @@ Returns the weather data string or nil on error."
 			 (not wttrin--force-refresh))
 		data
 	  (condition-case err
-		  (let ((fresh-data (wttrin-fetch-raw-string
-							 (concat location (wttrin-additional-url-params)))))
+		  (let ((fresh-data (wttrin-fetch-raw-string location)))
 			(when fresh-data
 			  (wttrin--cleanup-cache-if-needed)
 			  (puthash cache-key (cons now fresh-data) wttrin--cache))

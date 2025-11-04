@@ -1,0 +1,131 @@
+
+* Claude Code Session Notes
+This file contains important information for Claude to remember between sessions.
+** User Information
+*** Calendar Location
+Craig's calendar is available at: =/home/cjennings/sync/org/gcal.org=
+
+Use this to:
+- Check meeting times and schedules
+- Verify when events occurred
+- See what's upcoming
+
+*** Todo List Location
+Craig's todo list is at: =/home/cjennings/code/wttrin/todo.org=
+
+*IMPORTANT*: When Craig refers to "my todo list" or "task list", he means this file.
+- Use the Edit tool to update tasks in this file
+- Do NOT confuse this with Claude Code's TodoWrite tool (which is for tracking Claude's internal task progress)
+- This is an org-mode file with TODO/DOING/DONE states
+
+*** Quality Engineering Guidelines
+Craig's quality engineering and testing practices are documented at:
+=/home/cjennings/.emacs.d/ai-prompts/quality-engineer.org=
+
+*Key principles for wttrin testing project:*
+- Follow ERT (Emacs Lisp Regression Testing) framework
+- Separate interactive UI from logic (Interactive vs Non-Interactive Pattern)
+  - Internal functions prefixed with =--= contain pure logic
+  - Interactive wrappers handle user prompts
+  - Test the internal functions with direct parameters
+- Test file organization:
+  - Unit tests: =test-wttrin-<methodname>.el= (one file per method)
+  - Integration tests: =test-integration-<area-or-workflow>.el=
+  - Test utilities: =testutil-<category>.el=
+- Test naming: =test-<module>-<function>-<category>-<scenario>-<expected-result>=
+  - Categories: normal, boundary, error
+- NEVER hardcode dates in tests - use dynamic timestamp generation
+- DON'T MOCK WHAT YOU'RE TESTING - only mock external dependencies
+- Each test must be independent and deterministic
+
+*Current testing project:*
+- Adding comprehensive ERT tests to wttrin package
+- Multi-session project - track progress in session notes
+- Refactor functions to be testable (separate UI from logic)
+- Goal: Full test coverage for all core functionality
+
+*Session 1 Progress (2025-11-03):*
+- Created comprehensive testing plan in =docs/testing-plan.org=
+- Refactored wttrin.el to separate UI from logic
+  - Extracted =wttrin--build-url= (pure function for URL building)
+  - Fixed multiple bugs in =wttrin-fetch-raw-string=:
+    - Removed incorrect callback parameter to url-retrieve-synchronously
+    - Added nil buffer check for network failures
+    - Strip HTTP headers before decoding
+    - Kill buffer after use to prevent leaks
+    - URL encoding now handled properly
+  - Fixed double concatenation bug in =wttrin--get-cached-or-fetch=
+  - Fixed nil handling in =wttrin-additional-url-params=
+- Created test infrastructure:
+  - =tests/testutil-wttrin.el= with test utilities and helpers
+  - 4 unit test files with 33 comprehensive tests
+- Test Results: *33 tests, 33 passing, 0 failures*
+
+*Files with test coverage:*
+1. =wttrin-additional-url-params= - 7 tests (normal, boundary, error cases)
+2. =wttrin--make-cache-key= - 9 tests (includes Unicode, special chars)
+3. =wttrin--build-url= - 10 tests (URL encoding, parameters)
+4. =wttrin--cleanup-cache-if-needed= - 7 tests (cache eviction logic)
+
+*Next session priorities:*
+1. Write tests for =wttrin--get-cached-or-fetch= (cache workflow)
+2. Extract parsing logic from =wttrin-query= and test it
+3. Write integration tests for fetch → parse → display workflow
+4. Test error handling paths
+5. Consider adding tests for interactive functions (if needed)
+
+*** Working Style
+- Craig uses Emacs as primary tool
+** Session Protocols / Vocabulary
+*** "Add to our vocabulary"
+When Craig says "let's add this to our vocabulary" or a similar phrase, you should execute this sequence:
+
+1. Add a row at this level to the parent org heading named "Session Protocols / Vocabulary"
+2. Ask Craig for any similar names he might use.
+3. If he already hasn't provided this information or it isn't clear, ask him for the steps you should take when you see this phrase. Make sure the phrase under discussion is clear.
+4. Write the definition in steps just like any of the other org-headers and their content in this list.
+5. Then remember the instructions, because he's likely to ask you to do that vocabulary word. 
+*** "Let's wrap it up" / "That's a wrap" - End of Session Routine
+When Craig says "let's wrap it up" or "that's a wrap", execute this sequence:
+
+1. *Update notes*: Add anything important to remember for next session to this file (CLAUDE-NOTES.org)
+   - Session summary if significant work was done
+   - Critical reminders for tomorrow
+   - Any new conventions or preferences learned
+
+2. *Git commit and push*: Commit all changes in the repository and push to remote
+   - Use descriptive commit message
+   - Ensure working tree is clean
+   - Confirm push succeeded
+
+3. *Final exchange*: Brief valediction/good wishes before Craig closes laptop
+   - Keep it warm but concise
+   - Acknowledge the day's work if appropriate
+   - "Good night" / "Talk tomorrow" / similar
+
+This ensures clean handoff between sessions and nothing gets lost.
+
+** File Naming Conventions
+*** Update todo.org Links When Renaming Files
+Many documents in this project are linked in =todo.org= using org-mode =file:= links.
+
+*When renaming ANY file*, always search =todo.org= for references to that file and update all links to the new filename.
+
+Example workflow:
+1. Rename file (e.g., add =TOOLARGE-= prefix)
+2. Search =todo.org= for old filename
+3. Update all =file:= links to new filename
+
+This prevents broken links and maintains the integrity of the project documentation.
+
+** File Format Preferences
+*** ALWAYS Use Org-Mode Format
+The user uses Emacs as their primary tool. *ALWAYS* create new documentation files in =.org= format, not =.md= (markdown).
+
+*Rationale*:
+- Org-mode files are well-supported in Emacs
+- Can be easily exported to any other format (HTML, PDF, Markdown, etc.)
+- Better integration with user's workflow
+
+*Exception*: Only use .md if specifically requested or if the file is intended for GitHub/web display where markdown is expected.
+

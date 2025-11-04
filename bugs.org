@@ -1,0 +1,151 @@
+* Bugs Found in wttrin.el Code Analysis
+
+** BUG [#A] Callback passed to url-retrieve-synchronously (Line 114)
+Location: =wttrin.el:114=
+
+The code passes a lambda callback to =url-retrieve-synchronously=:
+#+begin_src elisp
+(url-retrieve-synchronously
+ (concat "https://wttr.in/" query (wttrin-additional-url-params) "A")
+ (lambda () (switch-to-buffer (current-buffer))))
+#+end_src
+
+The synchronous API signature is =(url-retrieve-synchronously URL &optional silent inhibit-cookies)=. The lambda is being interpreted as the =silent= argument, not a callback. This does nothing but is misleading.
+
+*Fix:* Remove the lambda and just call:
+#+begin_src elisp
+(url-retrieve-synchronously url)
+#+end_src
+
+** BUG [#A] HTTP headers not stripped before xterm-color-filter (Line 152)
+Location: =wttrin.el:152=
+
+The code inserts the raw buffer string directly:
+#+begin_src elisp
+(insert (xterm-color-filter raw-string))
+#+end_src
+
+But =raw-string= from =wttrin-fetch-raw-string= includes HTTP headers (status line, Date, Content-Type, etc.). This means the headers are passed through =xterm-color-filter=.
+
+*Fix:* Strip HTTP headers first:
+#+begin_src elisp
+(goto-char (point-min))
+(re-search-forward "\r?\n\r?\n")
+(let ((body (buffer-substring-no-properties (point) (point-max))))
+  (xterm-color-filter body))
+#+end_src
+
+** BUG [#A] No URL encoding of user input (Lines 113, 201)
+Location: =wttrin.el:113=, =wttrin.el:201=
+
+User input is concatenated directly into URLs:
+#+begin_src elisp
+(concat "https://wttr.in/" query (wttrin-additional-url-params) "A")
+#+end_src
+
+If a user enters ="New York, NY"= the space and comma could cause URL parsing issues.
+
+*Fix:* URL-encode the location:
+#+begin_src elisp
+(concat "https://wttr.in/" (url-hexify-string query) ...)
+#+end_src
+
+** BUG [#A] No error handling for nil buffer from url-retrieve-synchronously (Line 111)
+Location: =wttrin.el:111=
+
+The code assumes =url-retrieve-synchronously= always returns a buffer:
+#+begin_src elisp
+(with-current-buffer
+    (url-retrieve-synchronously ...)
+  (decode-coding-string (buffer-string) 'utf-8))
+#+end_src
+
+If there's a timeout, DNS failure, or network error, =url-retrieve-synchronously= can return nil, causing an error in =with-current-buffer=.
+
+*Fix:* Check for nil:
+#+begin_src elisp
+(let ((buf (url-retrieve-synchronously url t t)))
+  (if (not buf)
+      (error "wttrin: network failure")
+    (with-current-buffer buf ...)))
+#+end_src
+
+** BUG [#B] Double concatenation of url params (Line 201)
+Location: =wttrin.el:201=
+
+In =wttrin--get-cached-or-fetch=:
+#+begin_src elisp
+(wttrin-fetch-raw-string (concat location (wttrin-additional-url-params)))
+#+end_src
+
+But =wttrin-fetch-raw-string= already calls =wttrin-additional-url-params= on line 113. This means the params get added twice.
+
+*Fix:* Remove the concatenation from line 201:
+#+begin_src elisp
+(wttrin-fetch-raw-string location)
+#+end_src
+
+** BUG [#C] wttrin-additional-url-params returns malformed URL (Line 105)
+Location: =wttrin.el:105=
+
+The function returns:
+#+begin_src elisp
+(concat "?" wttrin-unit-system)
+#+end_src
+
+If =wttrin-unit-system= is nil, this returns ="?"=. When concatenated with the ="A"= on line 113, you get URLs like =https://wttr.in/Paris?A= instead of =https://wttr.in/Paris?mA= (for metric).
+
+*Fix:* Handle nil properly:
+#+begin_src elisp
+(defun wttrin-additional-url-params ()
+  "Concatenates extra information into the URL."
+  (concat "?" (or wttrin-unit-system "")))
+#+end_src
+
+Or better yet, restructure the URL building entirely.
+
+** BUG [#C] Hard-coded buffer name prevents multiple locations (Line 139)
+Location: =wttrin.el:139=
+
+The buffer is always named ="*wttr.in*"=:
+#+begin_src elisp
+(let ((buffer (get-buffer-create (format "*wttr.in*")))
+#+end_src
+
+This prevents viewing multiple locations simultaneously. The format string has no interpolation.
+
+*Fix:* Use the location name:
+#+begin_src elisp
+(let ((buffer (get-buffer-create (format "*wttr.in: %s*" location-name)))
+#+end_src
+
+** BUG [#C] Fragile header parsing with hard-coded line numbers (Lines 156-165)
+Location: =wttrin.el:156-165=
+
+The code assumes weather data always has specific information on lines 4 and 6:
+#+begin_src elisp
+(forward-line 4)
+(setq date-time-stamp ...)
+(goto-char (point-min))
+(forward-line 6)
+(setq location-info ...)
+#+end_src
+
+This is fragile and will break if wttr.in changes its output format or if HTTP headers vary in length.
+
+*Fix:* Use pattern matching to find the information instead of relying on fixed line numbers.
+
+** BUG [#C] No buffer cleanup after url-retrieve-synchronously (Line 111)
+Location: =wttrin.el:111=
+
+After retrieving the URL, the buffer created by =url-retrieve-synchronously= is never killed. This creates buffer leaks on each weather fetch.
+
+*Fix:* Kill the buffer after extraction:
+#+begin_src elisp
+(let ((buf (url-retrieve-synchronously url)))
+  (when buf
+    (unwind-protect
+        (with-current-buffer buf
+          (decode-coding-string (buffer-string) 'utf-8))
+      (kill-buffer buf))))
+#+end_src

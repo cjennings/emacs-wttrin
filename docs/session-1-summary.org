@@ -1,0 +1,141 @@
+* WTTRIN Testing Project - Session 1 Summary
+Date: 2025-11-03
+Status: ✅ Complete
+
+** What Was Accomplished
+
+*** Bug Fixes in wttrin.el (5 bugs fixed)
+1. ✅ Fixed =wttrin-additional-url-params= to handle nil properly
+2. ✅ Removed incorrect callback parameter in =wttrin-fetch-raw-string=
+3. ✅ Added nil buffer check for network failures
+4. ✅ Strip HTTP headers before decoding (was causing display issues)
+5. ✅ Kill buffer after fetch to prevent memory leaks
+6. ✅ Fixed double concatenation of URL params in cache function
+7. ✅ Added proper URL encoding via new =wttrin--build-url= function
+
+*** Code Refactoring
+- Extracted =wttrin--build-url= as pure function (testable)
+- Separated URL building logic from network I/O
+- All refactoring maintains backward compatibility
+
+*** Test Infrastructure Created
+- =tests/testutil-wttrin.el= - Shared test utilities
+  - Cache helpers (add, clear, size)
+  - Custom variable management macros
+  - Setup/teardown functions
+
+*** Test Coverage Added
+*Total: 33 tests, 100% passing*
+
+1. *test-wttrin-additional-url-params.el* (7 tests)
+   - Normal: metric, USCS, wind speed units
+   - Boundary: nil, empty string, single char
+   - Error: invalid type handling
+
+2. *test-wttrin--make-cache-key.el* (9 tests)
+   - Normal: location with different unit systems
+   - Boundary: empty string, spaces, commas, Unicode, special chars
+   - Error: nil location
+
+3. *test-wttrin--build-url.el* (10 tests)
+   - Normal: simple locations, different unit systems
+   - Boundary: spaces, commas, special chars, Unicode, GPS coords
+   - Error: nil location signals error
+
+4. *test-wttrin--cleanup-cache-if-needed.el* (7 tests)
+   - Normal: cache cleanup when exceeding max size
+   - Boundary: empty cache, exactly at max, edge cases
+   - Validates oldest entries are removed correctly
+
+** Test Execution
+All tests pass successfully:
+
+#+begin_src shell
+emacs --batch -L . -L tests \
+  --eval "(setq package-user-dir \"~/.emacs.d/elpa\")" \
+  --eval "(package-initialize)" \
+  -l wttrin.el -l testutil-wttrin.el \
+  -l test-wttrin-additional-url-params.el \
+  -l test-wttrin--make-cache-key.el \
+  -l test-wttrin--build-url.el \
+  -l test-wttrin--cleanup-cache-if-needed.el \
+  -f ert-run-tests-batch-and-exit
+#+end_src
+
+*Result:* Running 33 tests ... Ran 33 tests, 33 results as expected, 0 unexpected
+
+** Documentation Created
+- =docs/testing-plan.org= - Comprehensive testing roadmap
+  - Identifies all functions needing tests
+  - Categorizes by refactoring needs
+  - Phases for implementation
+  - Estimated 95 total tests when complete
+
+- =docs/NOTES.org= - Updated with:
+  - Quality engineering guidelines reference
+  - Session 1 progress summary
+  - Next session priorities
+
+- =docs/session-1-summary.org= - This file!
+
+** Files Modified
+- =wttrin.el= - Bug fixes and refactoring
+- =docs/NOTES.org= - Testing project notes added
+- =~/.claude/settings.json= - Added wttrin project permissions
+
+** Files Created
+- =docs/testing-plan.org=
+- =docs/bugs.org=
+- =tests/testutil-wttrin.el=
+- =tests/test-wttrin-additional-url-params.el=
+- =tests/test-wttrin--make-cache-key.el=
+- =tests/test-wttrin--build-url.el=
+- =tests/test-wttrin--cleanup-cache-if-needed.el=
+- =docs/session-1-summary.org=
+
+** Next Session Priorities
+1. Write tests for =wttrin--get-cached-or-fetch= (cache workflow with TTL)
+2. Extract and test parsing logic from =wttrin-query=
+3. Write integration tests for fetch → parse → display workflow
+4. Test error handling paths throughout
+5. Consider async loading tests (if needed)
+
+** Progress Metrics
+- Functions tested: 4 of ~10 planned
+- Test coverage: ~40% of core functions
+- Bugs fixed: 7 (from original audit)
+- Bugs remaining: ~9 (see =docs/bugs.org= and =todo.org=)
+- Tests written: 33
+- Tests passing: 33 (100%)
+- Tests failing: 0
+
+** Notes for Next Session
+- Test utilities are working well - easy to add new tests
+- Refactoring pattern (extract pure functions) is effective
+- Cache logic is more complex - needs careful testing
+- Consider mocking url-retrieve-synchronously for fetch tests
+- Buffer manipulation in wttrin-query needs extraction for testing
+
+** How to Run Tests
+Individual test file:
+#+begin_src shell
+emacs --batch -L . -L tests \
+  --eval "(setq package-user-dir \"~/.emacs.d/elpa\")" \
+  --eval "(package-initialize)" \
+  -l wttrin.el -l testutil-wttrin.el \
+  -l test-wttrin-<function-name>.el \
+  -f ert-run-tests-batch-and-exit
+#+end_src
+
+All tests:
+#+begin_src shell
+emacs --batch -L . -L tests \
+  --eval "(setq package-user-dir \"~/.emacs.d/elpa\")" \
+  --eval "(package-initialize)" \
+  -l wttrin.el -l testutil-wttrin.el \
+  -l test-wttrin-additional-url-params.el \
+  -l test-wttrin--make-cache-key.el \
+  -l test-wttrin--build-url.el \
+  -l test-wttrin--cleanup-cache-if-needed.el \
+  -f ert-run-tests-batch-and-exit
+#+end_src
