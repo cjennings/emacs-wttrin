@@ -32,10 +32,14 @@ TEST_UTIL_FILES = $(wildcard $(TEST_DIR)/testutil-*.el)
 
 # Emacs batch flags
 EMACS_BATCH = $(EMACS) --batch --no-site-file --no-site-lisp
-EMACS_TEST = $(EMACS_BATCH) -L $(PROJECT_ROOT) -L $(TEST_DIR)
+EMACS_TEST = $(EMACS_BATCH) \
+	--eval "(require 'package)" \
+	--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+	--eval "(package-initialize)" \
+	-L $(PROJECT_ROOT) -L $(TEST_DIR)
 
 .PHONY: help test test-all test-unit test-integration test-file test-name \
-        validate-parens validate compile lint \
+        validate-parens validate compile lint install-deps \
         clean clean-compiled clean-tests
 
 # Default target
@@ -56,6 +60,9 @@ help:
 	@echo "    make validate          - Load wttrin.el to verify it compiles"
 	@echo "    make compile           - Byte-compile wttrin.el"
 	@echo "    make lint              - Run all linters (checkdoc, package-lint, elisp-lint)"
+	@echo ""
+	@echo "  Setup:"
+	@echo "    make install-deps      - Install required dependencies (xterm-color)"
 	@echo ""
 	@echo "  Utilities:"
 	@echo "    make clean             - Remove test artifacts and compiled files"
@@ -192,6 +199,20 @@ lint:
 				(elisp-lint-file \"$(MAIN_FILE)\")))" && \
 		echo "✓ All linting checks passed" || \
 		echo "⚠ Linting issues found"
+
+# ============================================================================
+# Setup Targets
+# ============================================================================
+
+install-deps:
+	@echo "Installing dependencies..."
+	@$(EMACS) --batch \
+		--eval "(require 'package)" \
+		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+		--eval "(package-initialize)" \
+		--eval "(unless package-archive-contents (package-refresh-contents))" \
+		--eval "(package-install 'xterm-color)"
+	@echo "✓ Dependencies installed"
 
 # ============================================================================
 # Utility Targets
