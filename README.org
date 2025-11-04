@@ -163,6 +163,56 @@ Wttrin caches weather data to reduce API calls and improve responsiveness. The c
   (setq wttrin-cache-max-entries 100) ;; Store up to 100 cached locations
 #+end_src
 
+*** Mode-line Weather Display
+Wttrin can display current weather for your favorite location directly in the mode-line. The weather updates automatically in the background every 15 minutes, showing a color emoji weather icon with full details on hover.
+
+**** Basic Setup
+To enable the mode-line weather display, set your favorite location and enable auto-start:
+
+#+begin_src emacs-lisp
+  (use-package wttrin
+    :ensure t
+    :custom
+    (wttrin-mode-line-favorite-location "Berkeley, CA")
+    (wttrin-mode-line-auto-enable t))
+#+end_src
+
+Alternatively, you can manually toggle the mode-line display:
+
+#+begin_src emacs-lisp
+  (wttrin-mode-line-mode 1)  ;; Enable
+  (wttrin-mode-line-mode 0)  ;; Disable
+#+end_src
+
+**** Features
+- *Mode-line icon*: Shows just a color emoji (e.g., ☀️ 🌧️ ⛅)
+- *Tooltip*: Hover for full details (location, temperature, conditions)
+- *Left-click*: Open full weather buffer for your favorite location
+- *Right-click*: Force refresh the weather data immediately
+- *Auto-refresh*: Updates every 15 minutes automatically
+
+**** Customization
+You can customize several aspects of the mode-line weather display:
+
+#+begin_src emacs-lisp
+  ;; Set your favorite location (required for mode-line display)
+  (setq wttrin-mode-line-favorite-location "New Orleans, LA")
+
+  ;; Auto-enable mode-line weather on startup
+  (setq wttrin-mode-line-auto-enable t)
+
+  ;; Adjust refresh interval (in seconds, default is 900 = 15 minutes)
+  (setq wttrin-mode-line-refresh-interval (* 10 60))  ;; Refresh every 10 minutes
+
+  ;; Choose emoji font for color display (common options)
+  (setq wttrin-mode-line-emoji-font "Apple Color Emoji")   ;; macOS
+  (setq wttrin-mode-line-emoji-font "Noto Color Emoji")    ;; Linux (default)
+  (setq wttrin-mode-line-emoji-font "Segoe UI Emoji")      ;; Windows
+  (setq wttrin-mode-line-emoji-font nil)                   ;; Use default font
+#+end_src
+
+*Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
+
 ** History
 Wttrin was originally the work of Carl X. Su and Ono Hiroko. All credit and appreciation for the original idea and code is theirs, not mine. Over time the package stopped working due to the inevitablity of bit-rot and Emacs's own evolution. I loved using this package, so I adopted Wttrin to maintain and evolve for the Emacs community, and as thanks to the original authors.
 
