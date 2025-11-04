@@ -122,6 +122,14 @@ Set to nil to use default font (may render as monochrome)."
   :type '(choice (const :tag "Use default font" nil)
                  (string :tag "Font family name")))
 
+(defcustom wttrin-mode-line-auto-enable nil
+  "If non-nil, automatically enable mode-line weather display when loading wttrin.
+When enabled, weather for `wttrin-mode-line-favorite-location' will appear
+in the mode-line automatically.  You can also manually toggle the mode-line
+display with `wttrin-mode-line-mode'."
+  :group 'wttrin
+  :type 'boolean)
+
 (defcustom wttrin-debug nil
   "Enable debug functions for troubleshooting wttrin behavior.
 When non-nil, loads wttrin-debug.el which provides:
@@ -544,6 +552,10 @@ Weather data is fetched asynchronously to avoid blocking Emacs."
                      (when (= (length wttrin-default-locations) 1)
                        (car wttrin-default-locations)))))
   (wttrin-query location))
+
+;; Auto-enable mode-line display if requested
+(when wttrin-mode-line-auto-enable
+  (wttrin-mode-line-mode 1))
 
 (provide 'wttrin)
 ;;; wttrin.el ends here
