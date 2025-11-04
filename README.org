@@ -94,6 +94,8 @@ Choose one, or for a quick one-time weather check, type a new location and ⏎ .
 ** Customization
 Wttrin can be customized using the built-in Emacs Customize interface. To do this, type M-x customize ⏎ wttrin ⏎ and use the UI. However, it's more portable and reproducible to keep the customizations in your init file, so do that.
 
+*Note for Emacs 29+ users:* The examples below use `setq`, which works for all Emacs versions. If you're running Emacs 29.1 or later, you can use `setopt` instead, which provides type checking and runs any custom setter functions. Both work fine for Wttrin.
+
 *** Default Location List
 
 Most people will just want to add a bunch of cities to the location list. However, you should know you can check the weather for places that aren't cities, so here's an example showing several ways to add locations to Wttrin.
@@ -151,6 +153,24 @@ Wttrin's default is to select the unit system appropriate for the location you q
   (setq wttrin-unit-system "m") ;; for Metric units
   (setq wttrin-unit-system "u") ;; for USCS/Imperial units
   (setq wttrin-unit-system nil) ;; the default of using units appropriate for the queried location.
+#+end_src
+
+*** Advanced Settings
+Most users won't need to adjust these, but they're available if you want to fine-tune Wttrin's behavior.
+
+**** Asynchronous Loading
+By default, Wttrin fetches weather data asynchronously, so Emacs stays responsive while waiting for the network. If you prefer synchronous loading (blocking until data arrives), you can disable async mode:
+
+#+begin_src emacs-lisp
+  (setq wttrin-use-async nil) ;; Use synchronous loading instead
+#+end_src
+
+**** Cache Settings
+Wttrin caches weather data to reduce API calls and improve responsiveness. The cache holds data for 15 minutes by default, with a maximum of 50 entries. If you're checking weather frequently or want longer cache times, you can adjust these:
+
+#+begin_src emacs-lisp
+  (setq wttrin-cache-ttl 1800)        ;; Cache for 30 minutes (in seconds)
+  (setq wttrin-cache-max-entries 100) ;; Store up to 100 cached locations
 #+end_src
 
 ** History
