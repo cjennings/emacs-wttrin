@@ -37,6 +37,9 @@
 (require 'url)
 (require 'xterm-color) ;; https://github.com/atomontage/xterm-color
 
+;; Declare functions from wttrin-debug.el (loaded conditionally)
+(declare-function wttrin--debug-mode-line-info "wttrin-debug")
+
 (defgroup wttrin nil
   "Emacs frontend for the weather web service wttr.in."
   :prefix "wttrin-"
@@ -92,18 +95,69 @@ units (default)."
   :group 'wttrin
   :type 'integer)
 
+(defcustom wttrin-mode-line-favorite-location nil
+  "Favorite location to display weather for in the mode-line.
+When nil, mode-line weather display is disabled.
+Set to a location string (e.g., \"New Orleans, LA\") to enable.
+The weather icon and tooltip will update automatically in the background."
+  :group 'wttrin
+  :type '(choice (const :tag "Disabled" nil)
+                 (string :tag "Location")))
+
+(defcustom wttrin-mode-line-refresh-interval 900
+  "Interval in seconds to refresh mode-line weather data.
+Default is 900 seconds (15 minutes)."
+  :group 'wttrin
+  :type 'integer)
+
+(defcustom wttrin-mode-line-emoji-font "Noto Color Emoji"
+  "Font family to use for mode-line weather emoji.
+Common color emoji fonts include:
+- \"Noto Color Emoji\" (Linux)
+- \"Apple Color Emoji\" (macOS)
+- \"Segoe UI Emoji\" (Windows)
+- \"Twitter Color Emoji\"
+Set to nil to use default font (may render as monochrome)."
+  :group 'wttrin
+  :type '(choice (const :tag "Use default font" nil)
+                 (string :tag "Font family name")))
+
 (defcustom wttrin-debug nil
-  "If non-nil, save raw weather data to timestamped files for debugging.
-Raw data files are saved to `temporary-file-directory' with names like
-wttrin-debug-YYYYMMDD-HHMMSS.txt for bug reports."
+  "Enable debug functions for troubleshooting wttrin behavior.
+When non-nil, loads wttrin-debug.el which provides:
+- Automatic mode-line diagnostic logging when wttrin runs
+- Raw weather data saved to timestamped files in `temporary-file-directory'
+- Interactive debug commands for troubleshooting
+
+Set this to t BEFORE loading wttrin, typically in your init file:
+  (setq wttrin-debug t)
+  (require \\='wttrin)"
   :group 'wttrin
   :type 'boolean)
+
+;; Load debug functions if enabled
+(when wttrin-debug
+  (require 'wttrin-debug
+           (expand-file-name "wttrin-debug.el"
+                             (file-name-directory (or load-file-name buffer-file-name)))
+           t))
 
 (defvar wttrin--cache (make-hash-table :test 'equal)
   "Cache for weather data: cache-key -> (timestamp . data).")
 
 (defvar wttrin--force-refresh nil
   "When non-nil, bypass cache on next fetch.")
+
+(defvar wttrin-mode-line-string nil
+  "Mode-line string showing weather for favorite location.")
+;;;###autoload(put 'wttrin-mode-line-string 'risky-local-variable t)
+(put 'wttrin-mode-line-string 'risky-local-variable t)
+
+(defvar wttrin--mode-line-timer nil
+  "Timer object for mode-line weather refresh.")
+
+(defvar wttrin--mode-line-tooltip-data nil
+  "Cached full weather data for tooltip display.")
 
 (defun wttrin-additional-url-params ()
   "Concatenates extra information into the URL."
@@ -174,7 +228,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
     map)
   "Keymap for wttrin-mode.")
 
-(define-derived-mode wttrin-mode special-mode "⛅"
+(define-derived-mode wttrin-mode special-mode "Wttrin"
   "Major mode for displaying wttr.in weather information.
 
 Weather data is displayed in a read-only buffer with the following keybindings:
@@ -233,7 +287,14 @@ Returns the path to the saved file."
       (wttrin-mode)
 
       ;; Set location after mode initialization (mode calls kill-all-local-variables)
-      (setq-local wttrin--current-location location-name))))
+      (setq-local wttrin--current-location location-name)
+
+      ;; Auto-generate debug diagnostics if debug mode is enabled
+      (when (featurep 'wttrin-debug)
+        (wttrin--debug-mode-line-info))
+
+      ;; Clear any lingering messages from url-retrieve
+      (message nil))))
 
 (defun wttrin-query (location-name)
   "Asynchronously query weather of LOCATION-NAME, display result when ready."
@@ -314,6 +375,164 @@ CALLBACK is called with the weather data string when ready, or nil on error."
         (message "Refreshing weather data...")
         (wttrin-query wttrin--current-location))
     (message "No location to refresh")))
+
+;;; Mode-line weather display
+
+(defun wttrin--mode-line-fetch-weather ()
+  "Fetch weather for favorite location and update mode-line display.
+Uses wttr.in custom format for concise weather with emoji."
+  (when (featurep 'wttrin-debug)
+    (message "wttrin mode-line: Fetching weather for %s" wttrin-mode-line-favorite-location))
+  (when wttrin-mode-line-favorite-location
+    (let* ((location wttrin-mode-line-favorite-location)
+           ;; Custom format: location + emoji + temp + conditions
+           ;; %l=location, %c=weather emoji, %t=temp, %C=conditions
+           ;; Note: unit system must come BEFORE format in query string
+           (format-params (if wttrin-unit-system
+                              (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
+                            "?format=%l:+%c+%t+%C"))
+           (url (concat "https://wttr.in/"
+                       (url-hexify-string location)
+                       format-params))
+           (url-request-extra-headers (list wttrin-default-languages))
+           (url-user-agent "curl"))
+      (when (featurep 'wttrin-debug)
+        (message "wttrin mode-line: URL = %s" url))
+      (url-retrieve
+       url
+       (lambda (status)
+         (let ((data nil))
+           (condition-case err
+               (if (plist-get status :error)
+                   (progn
+                     (message "wttrin mode-line: Network error - %s"
+                             (cdr (plist-get status :error)))
+                     (setq data nil))
+                 (unwind-protect
+                     (progn
+                       ;; Skip HTTP headers
+                       (goto-char (point-min))
+                       (re-search-forward "\r?\n\r?\n" nil t)
+                       (setq data (string-trim
+                                  (decode-coding-string
+                                   (buffer-substring-no-properties (point) (point-max))
+                                   'utf-8)))
+                       (when (featurep 'wttrin-debug)
+                         (message "wttrin mode-line: Received data = %S" data)))
+                   (kill-buffer (current-buffer))))
+             (error
+              (message "wttrin mode-line: Error - %s" (error-message-string err))
+              (setq data nil)))
+           (when data
+             (wttrin--mode-line-update-display data))))))))
+
+(defun wttrin--mode-line-update-display (weather-string)
+  "Update mode-line display with WEATHER-STRING.
+Extracts emoji for mode-line, stores full info for tooltip.
+WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: ☀️ +61°F Clear\")."
+  (when (featurep 'wttrin-debug)
+    (message "wttrin mode-line: Updating display with: %S" weather-string))
+  ;; Store full weather info for tooltip
+  (setq wttrin--mode-line-tooltip-data weather-string)
+  ;; Extract just the emoji for mode-line display
+  ;; Format is "Location: emoji +temp conditions"
+  ;; We want just the emoji (first character after ": ")
+  (let* ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
+                    (match-string 1 weather-string)
+                  "?"))  ; Fallback if parsing fails
+         ;; Force color emoji rendering by setting font family
+         (emoji-with-font (if wttrin-mode-line-emoji-font
+                              (propertize emoji
+                                          'face (list :family wttrin-mode-line-emoji-font
+                                                      :height 1.0))
+                            emoji)))
+    (setq wttrin-mode-line-string
+          (propertize (concat " " emoji-with-font)
+                      'help-echo (lambda (_window _object _pos)
+                                   (or wttrin--mode-line-tooltip-data
+                                       (format "Weather for %s\nClick to refresh"
+                                               wttrin-mode-line-favorite-location)))
+                      'mouse-face 'mode-line-highlight
+                      'local-map (let ((map (make-sparse-keymap)))
+                                   (define-key map [mode-line mouse-1]
+                                     'wttrin-mode-line-click)
+                                   (define-key map [mode-line mouse-3]
+                                     'wttrin-mode-line-force-refresh)
+                                   map))))
+  (force-mode-line-update t)
+  (when (featurep 'wttrin-debug)
+    (message "wttrin mode-line: Display updated, mode-line-string = %S, tooltip = %S"
+             wttrin-mode-line-string wttrin--mode-line-tooltip-data)))
+
+(defun wttrin-mode-line-click ()
+  "Handle left-click on mode-line weather widget.
+Check cache, refresh if needed, then open weather buffer."
+  (interactive)
+  (when wttrin-mode-line-favorite-location
+    (wttrin wttrin-mode-line-favorite-location)))
+
+(defun wttrin-mode-line-force-refresh ()
+  "Handle right-click on mode-line weather widget.
+Force-refresh cache and update tooltip without opening buffer."
+  (interactive)
+  (when wttrin-mode-line-favorite-location
+    (let ((wttrin--force-refresh t))
+      (wttrin--mode-line-fetch-weather))))
+
+(defun wttrin--mode-line-start ()
+  "Start mode-line weather display and refresh timer."
+  (when (featurep 'wttrin-debug)
+    (message "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
+             wttrin-mode-line-favorite-location
+             wttrin-mode-line-refresh-interval))
+  (when wttrin-mode-line-favorite-location
+    ;; Delay initial fetch by 3 seconds to allow network to initialize during startup
+    (run-at-time 3 nil #'wttrin--mode-line-fetch-weather)
+    ;; Set up refresh timer (starts after the interval from now)
+    (when wttrin--mode-line-timer
+      (cancel-timer wttrin--mode-line-timer))
+    (setq wttrin--mode-line-timer
+          (run-at-time wttrin-mode-line-refresh-interval
+                      wttrin-mode-line-refresh-interval
+                      #'wttrin--mode-line-fetch-weather))
+    (when (featurep 'wttrin-debug)
+      (message "wttrin mode-line: Initial fetch scheduled in 3 seconds, then every %s seconds"
+               wttrin-mode-line-refresh-interval))))
+
+(defun wttrin--mode-line-stop ()
+  "Stop mode-line weather display and cancel timer."
+  (when (featurep 'wttrin-debug)
+    (message "wttrin mode-line: Stopping mode-line display"))
+  (when wttrin--mode-line-timer
+    (cancel-timer wttrin--mode-line-timer)
+    (setq wttrin--mode-line-timer nil))
+  (setq wttrin-mode-line-string nil)
+  (setq wttrin--mode-line-tooltip-data nil)
+  (force-mode-line-update t))
+
+;;;###autoload
+(define-minor-mode wttrin-mode-line-mode
+  "Toggle weather display in mode-line.
+When enabled, shows weather for `wttrin-mode-line-favorite-location'."
+  :global t
+  :lighter (:eval wttrin-mode-line-string)
+  (if wttrin-mode-line-mode
+      (progn
+        (when (featurep 'wttrin-debug)
+          (message "wttrin mode-line: Mode enabled"))
+        (wttrin--mode-line-start)
+        ;; Add modeline string to global-mode-string for custom modelines
+        (if global-mode-string
+            (add-to-list 'global-mode-string 'wttrin-mode-line-string 'append)
+          (setq global-mode-string '("" wttrin-mode-line-string)))
+        (when (featurep 'wttrin-debug)
+          (message "wttrin mode-line: Added to global-mode-string = %S" global-mode-string)))
+    (when (featurep 'wttrin-debug)
+      (message "wttrin mode-line: Mode disabled"))
+    (wttrin--mode-line-stop)
+    ;; Remove from global-mode-string
+    (setq global-mode-string
+          (delq 'wttrin-mode-line-string global-mode-string))))
 
 ;;;###autoload
 (defun wttrin (location)
