@@ -29,6 +29,20 @@ Wttrin is on [[https://melpa.org/][MELPA]] and [[https://stable.melpa.org/#/][ME
 
 With the cursor after the last closing parentheses, press "C-x C-e". Emacs will start the install, assign the keybinding, set the location list, and you'll be ready to go.
 
+*** Package VC Install (Emacs 30+)
+If you're running Emacs 30 or later, you can install Wttrin directly from its Git repository using the built-in package-vc system. This is particularly handy if you want to track the latest development or contribute bug fixes.
+
+#+begin_src emacs-lisp
+  (unless (package-installed-p 'wttrin)
+    (package-vc-install "https://github.com/cjennings/emacs-wttrin" nil nil 'wttrin))
+  (use-package wttrin
+    :bind ("C-c w" . wttrin)
+    :custom
+    (wttrin-default-locations '("Jeffreys Bay" "Raglan" "Mundaka")))
+#+end_src
+
+The package-vc system automatically handles updates when you run `M-x package-vc-upgrade`, making it easy to stay current with the main branch.
+
 *** Straight
 For the Elisp hackers using Straight for lockfiles or for easy hacking on bug fix PRs, you probably don't need me to tell you what to put in your Emacs init, but here it is anyway.
 
