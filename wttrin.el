@@ -102,6 +102,13 @@ units (default)."
   :group 'wttrin
   :type 'boolean)
 
+(defcustom wttrin-debug nil
+  "If non-nil, save raw weather data to timestamped files for debugging.
+Raw data files are saved to `temporary-file-directory' with names like
+wttrin-debug-YYYYMMDD-HHMMSS.txt for bug reports."
+  :group 'wttrin
+  :type 'boolean)
+
 (defvar wttrin--cache (make-hash-table :test 'equal)
   "Cache for weather data: cache-key -> (timestamp . data).")
 
@@ -209,12 +216,30 @@ Weather data is displayed in a read-only buffer with the following keybindings:
                                 :height ,wttrin-font-height))
   (buffer-face-mode t))
 
+(defun wttrin--save-debug-data (location-name raw-string)
+  "Save RAW-STRING to a timestamped debug file for LOCATION-NAME.
+Returns the path to the saved file."
+  (let* ((timestamp (format-time-string "%Y%m%d-%H%M%S"))
+         (filename (format "wttrin-debug-%s.txt" timestamp))
+         (filepath (expand-file-name filename temporary-file-directory)))
+    (with-temp-file filepath
+      (insert (format "Location: %s\n" location-name))
+      (insert (format "Timestamp: %s\n" (format-time-string "%Y-%m-%d %H:%M:%S")))
+      (insert (format "wttrin-unit-system: %s\n" wttrin-unit-system))
+      (insert "\n--- Raw Response ---\n\n")
+      (insert raw-string))
+    (message "Debug data saved to: %s" filepath)
+    filepath))
+
 (defun wttrin--display-weather (location-name raw-string)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
+  ;; Save debug data if enabled
+  (when wttrin-debug
+    (wttrin--save-debug-data location-name raw-string))
+
   (if (or (null raw-string) (string-match "ERROR" raw-string))
       (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
-    (let ((buffer (get-buffer-create (format "*wttr.in*")))
-          date-time-stamp location-info)
+    (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
 
       ;; Temporarily allow editing (in case mode is already active)
@@ -222,24 +247,14 @@ Weather data is displayed in a read-only buffer with the following keybindings:
         (erase-buffer)
         (insert (xterm-color-filter raw-string))
 
-        ;; rearrange header information
+        ;; Remove verbose Location: coordinate line
         (goto-char (point-min))
-        (forward-line 4)
-        (setq date-time-stamp (buffer-substring-no-properties
-                               (line-beginning-position) (line-end-position)))
-        (goto-char (point-min))
-        (forward-line 6)
-        (setq location-info (buffer-substring-no-properties
-                             (line-beginning-position) (line-end-position)))
-        (goto-char (point-min))
-        (forward-line 8)
-        (delete-region (point-min) (line-beginning-position))
+        (while (re-search-forward "^\\s-*Location:.*\\[.*\\].*$" nil t)
+          (delete-region (line-beginning-position) (1+ (line-end-position))))
 
-        (insert "\n" location-info "\n" date-time-stamp "\n\n\n")
-
-        ;; provide user instructions
+        ;; Add user instructions at the bottom
         (goto-char (point-max))
-        (insert "\nPress: [g] to query another location [r] to refresh [q] to quit")
+        (insert "\n\nPress: [g] to query another location [r] to refresh [q] to quit")
 
         ;; align buffer to top
         (goto-char (point-min)))
