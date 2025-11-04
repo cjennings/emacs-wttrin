@@ -190,6 +190,25 @@ CALLBACK is called with the weather data string when ready, or nil on error."
         (wttrin-query-async new-location)
       (wttrin-query new-location))))
 
+(defvar wttrin-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "g") 'wttrin-requery)
+    (define-key map (kbd "r") 'wttrin-requery-force)
+    ;; Note: 'q' is bound to quit-window by special-mode
+    map)
+  "Keymap for wttrin-mode.")
+
+(define-derived-mode wttrin-mode special-mode "⛅"
+  "Major mode for displaying wttr.in weather information.
+
+Weather data is displayed in a read-only buffer with the following keybindings:
+
+\\{wttrin-mode-map}"
+  (buffer-disable-undo)
+  (setq buffer-face-mode-face `(:family ,wttrin-font-name
+                                :height ,wttrin-font-height))
+  (buffer-face-mode t))
+
 (defun wttrin--display-weather (location-name raw-string)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
   (if (or (null raw-string) (string-match "ERROR" raw-string))
@@ -197,46 +216,40 @@ CALLBACK is called with the weather data string when ready, or nil on error."
     (let ((buffer (get-buffer-create (format "*wttr.in*")))
           date-time-stamp location-info)
       (switch-to-buffer buffer)
-      (setq-local wttrin--current-location location-name)
-      (setq buffer-read-only nil)
-      (erase-buffer)
 
-      ;; set the preferred font attributes for this buffer only
-      (setq buffer-face-mode-face `(:family ,wttrin-font-name :height
-                                             ,wttrin-font-height))
+      ;; Temporarily allow editing (in case mode is already active)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (xterm-color-filter raw-string))
 
-      ;; display buffer text and insert wttr.in data
-      (buffer-face-mode t)
-      (insert (xterm-color-filter raw-string))
-
-      ;; rearrange header information
-      (goto-char (point-min))
-      (forward-line 4)
-      (setq date-time-stamp (buffer-substring-no-properties
+        ;; rearrange header information
+        (goto-char (point-min))
+        (forward-line 4)
+        (setq date-time-stamp (buffer-substring-no-properties
+                               (line-beginning-position) (line-end-position)))
+        (goto-char (point-min))
+        (forward-line 6)
+        (setq location-info (buffer-substring-no-properties
                              (line-beginning-position) (line-end-position)))
-      (goto-char (point-min))
-      (forward-line 6)
-      (setq location-info (buffer-substring-no-properties
-                           (line-beginning-position) (line-end-position)))
-      (goto-char (point-min))
-      (forward-line 8)
-      (delete-region (point-min) (line-beginning-position))
+        (goto-char (point-min))
+        (forward-line 8)
+        (delete-region (point-min) (line-beginning-position))
 
-      (insert "\n" location-info "\n" date-time-stamp "\n\n\n")
+        (insert "\n" location-info "\n" date-time-stamp "\n\n\n")
 
-      ;; provide user instructions
-      (goto-char (point-max))
-      (insert "\nPress: [g] to query another location [r] to refresh [q] to quit")
+        ;; provide user instructions
+        (goto-char (point-max))
+        (insert "\nPress: [g] to query another location [r] to refresh [q] to quit")
 
-      ;; align buffer to top
-      (goto-char (point-min))
+        ;; align buffer to top
+        (goto-char (point-min)))
 
-      ;; create choice keymap and disallow modifying buffer
-      (use-local-map (make-sparse-keymap))
-      (local-set-key "q" 'wttrin-exit)
-      (local-set-key "r" 'wttrin-requery-force)
-      (local-set-key "g" 'wttrin-requery)
-      (setq buffer-read-only t))))
+      ;; Enable wttrin-mode (sets up keybindings, read-only, font, etc.)
+      ;; Must be called before setting buffer-local variables
+      (wttrin-mode)
+
+      ;; Set location after mode initialization (mode calls kill-all-local-variables)
+      (setq-local wttrin--current-location location-name))))
 
 (defun wttrin-query (location-name)
   "Query weather of LOCATION-NAME via wttrin, display the result in new buffer."
