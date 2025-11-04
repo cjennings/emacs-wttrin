@@ -52,11 +52,6 @@
   :group 'wttrin
   :type 'integer)
 
-(defface wttrin-buffer-face
-  `((t :height ,wttrin-font-height :family ,wttrin-font-name))
-  "Default face for the weather display buffer."
-  :group 'wttrin)
-
 (defcustom wttrin-default-locations '("Honolulu, HI"
 									  "Berkeley, CA"
 									  "New Orleans, LA"
@@ -97,11 +92,6 @@ units (default)."
   :group 'wttrin
   :type 'integer)
 
-(defcustom wttrin-use-async t
-  "If non-nil, fetch weather data asynchronously to avoid blocking Emacs."
-  :group 'wttrin
-  :type 'boolean)
-
 (defcustom wttrin-debug nil
   "If non-nil, save raw weather data to timestamped files for debugging.
 Raw data files are saved to `temporary-file-directory' with names like
@@ -131,26 +121,7 @@ This is a pure function with no side effects, suitable for testing."
           (wttrin-additional-url-params)
           "A"))
 
-(defun wttrin-fetch-raw-string (query)
-  "Get the weather information based on your QUERY.
-Returns the weather data as a string, or signals an error on failure."
-  (let* ((url (wttrin--build-url query))
-         (url-request-extra-headers (list wttrin-default-languages))
-         (url-user-agent "curl")
-         (buf (url-retrieve-synchronously url t t)))
-    (unless buf
-      (error "wttrin: Network failure - could not retrieve %S" query))
-    (unwind-protect
-        (with-current-buffer buf
-          ;; Skip HTTP headers
-          (goto-char (point-min))
-          (re-search-forward "\r?\n\r?\n" nil t)
-          (decode-coding-string
-           (buffer-substring-no-properties (point) (point-max))
-           'utf-8))
-      (kill-buffer buf))))
-
-(defun wttrin-fetch-raw-string-async (query callback)
+(defun wttrin-fetch-raw-string (query callback)
   "Asynchronously fetch weather information for QUERY.
 CALLBACK is called with the weather data string when ready, or nil on error."
   (let* ((url (wttrin--build-url query))
@@ -193,9 +164,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
                          (car wttrin-default-locations)))))
     (when (get-buffer "*wttr.in*")
       (kill-buffer "*wttr.in*"))
-    (if wttrin-use-async
-        (wttrin-query-async new-location)
-      (wttrin-query new-location))))
+    (wttrin-query new-location)))
 
 (defvar wttrin-mode-map
   (let ((map (make-sparse-keymap)))
@@ -267,11 +236,6 @@ Returns the path to the saved file."
       (setq-local wttrin--current-location location-name))))
 
 (defun wttrin-query (location-name)
-  "Query weather of LOCATION-NAME via wttrin, display the result in new buffer."
-  (let ((raw-string (wttrin--get-cached-or-fetch location-name)))
-    (wttrin--display-weather location-name raw-string)))
-
-(defun wttrin-query-async (location-name)
   "Asynchronously query weather of LOCATION-NAME, display result when ready."
   (let ((buffer (get-buffer-create (format "*wttr.in*"))))
     (switch-to-buffer buffer)
@@ -279,7 +243,7 @@ Returns the path to the saved file."
     (erase-buffer)
     (insert "Loading weather for " location-name "...")
     (setq buffer-read-only t)
-    (wttrin--get-cached-or-fetch-async
+    (wttrin--get-cached-or-fetch
      location-name
      (lambda (raw-string)
        (when (buffer-live-p buffer)
@@ -290,33 +254,7 @@ Returns the path to the saved file."
   "Create cache key from LOCATION and current settings."
   (concat location "|" (or wttrin-unit-system "default")))
 
-(defun wttrin--get-cached-or-fetch (location)
-  "Get cached weather for LOCATION or fetch if expired.
-Returns the weather data string or nil on error."
-  (let* ((cache-key (wttrin--make-cache-key location))
-		 (cached (gethash cache-key wttrin--cache))
-		 (timestamp (car cached))
-		 (data (cdr cached))
-		 (now (float-time)))
-	(if (and cached
-			 (< (- now timestamp) wttrin-cache-ttl)
-			 (not wttrin--force-refresh))
-		data
-	  (condition-case err
-		  (let ((fresh-data (wttrin-fetch-raw-string location)))
-			(when fresh-data
-			  (wttrin--cleanup-cache-if-needed)
-			  (puthash cache-key (cons now fresh-data) wttrin--cache))
-			fresh-data)
-		(error
-		 ;; On error, return stale cache if available
-		 (if cached
-			 (progn
-			   (message "Failed to fetch new data, using cached version")
-			   data)
-		   (signal (car err) (cdr err))))))))
-
-(defun wttrin--get-cached-or-fetch-async (location callback)
+(defun wttrin--get-cached-or-fetch (location callback)
   "Asynchronously get cached weather for LOCATION or fetch if expired.
 CALLBACK is called with the weather data string when ready, or nil on error."
   (let* ((cache-key (wttrin--make-cache-key location))
@@ -330,7 +268,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
         ;; Return cached data immediately
         (funcall callback data)
       ;; Fetch fresh data asynchronously
-      (wttrin-fetch-raw-string-async
+      (wttrin-fetch-raw-string
        location
        (lambda (fresh-data)
          (if fresh-data
@@ -372,26 +310,21 @@ CALLBACK is called with the weather data string when ready, or nil on error."
   "Force refresh weather data for current location, bypassing cache."
   (interactive)
   (if wttrin--current-location
-	  (let ((wttrin--force-refresh t))
-		(message "Refreshing weather data...")
-		(if wttrin-use-async
-			(wttrin-query-async wttrin--current-location)
-		  (wttrin-query wttrin--current-location)
-		  (message nil)))
-	(message "No location to refresh")))
+      (let ((wttrin--force-refresh t))
+        (message "Refreshing weather data...")
+        (wttrin-query wttrin--current-location))
+    (message "No location to refresh")))
 
 ;;;###autoload
 (defun wttrin (location)
   "Display weather information for LOCATION.
-Uses asynchronous fetching if `wttrin-use-async' is non-nil."
+Weather data is fetched asynchronously to avoid blocking Emacs."
   (interactive
    (list
     (completing-read "Location Name: " wttrin-default-locations nil nil
                      (when (= (length wttrin-default-locations) 1)
                        (car wttrin-default-locations)))))
-  (if wttrin-use-async
-      (wttrin-query-async location)
-    (wttrin-query location)))
+  (wttrin-query location))
 
 (provide 'wttrin)
 ;;; wttrin.el ends here

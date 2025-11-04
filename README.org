@@ -155,21 +155,11 @@ Wttrin's default is to select the unit system appropriate for the location you q
   (setq wttrin-unit-system nil) ;; the default of using units appropriate for the queried location.
 #+end_src
 
-*** Advanced Settings
-Most users won't need to adjust these, but they're available if you want to fine-tune Wttrin's behavior.
-
-**** Asynchronous Loading
-By default, Wttrin fetches weather data asynchronously, so Emacs stays responsive while waiting for the network. If you prefer synchronous loading (blocking until data arrives), you can disable async mode:
-
-#+begin_src emacs-lisp
-  (setq wttrin-use-async nil) ;; Use synchronous loading instead
-#+end_src
-
-**** Cache Settings
+*** Cache Settings
 Wttrin caches weather data to reduce API calls and improve responsiveness. The cache holds data for 15 minutes by default, with a maximum of 50 entries. If you're checking weather frequently or want longer cache times, you can adjust these:
 
 #+begin_src emacs-lisp
-  (setq wttrin-cache-ttl 1800)        ;; Cache for 30 minutes (in seconds)
+  (setq wttrin-cache-ttl (* 30 60))   ;; Cache for 30 minutes (in seconds)
   (setq wttrin-cache-max-entries 100) ;; Store up to 100 cached locations
 #+end_src
 
