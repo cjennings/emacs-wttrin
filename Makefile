@@ -163,7 +163,11 @@ validate-parens:
 
 validate:
 	@echo "Loading wttrin.el to verify compilation..."
-	@$(EMACS_BATCH) -L $(PROJECT_ROOT) \
+	@$(EMACS_BATCH) \
+		--eval "(require 'package)" \
+		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+		--eval "(package-initialize)" \
+		-L $(PROJECT_ROOT) \
 		--eval "(condition-case err \
 			(progn \
 				(load-file \"$(MAIN_FILE)\") \
@@ -176,7 +180,11 @@ validate:
 
 compile:
 	@echo "Byte-compiling wttrin.el..."
-	@$(EMACS_BATCH) -L $(PROJECT_ROOT) \
+	@$(EMACS_BATCH) \
+		--eval "(require 'package)" \
+		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+		--eval "(package-initialize)" \
+		-L $(PROJECT_ROOT) \
 		--eval "(progn \
 			(setq byte-compile-error-on-warn nil) \
 			(batch-byte-compile))" $(MAIN_FILE)

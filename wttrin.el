@@ -97,8 +97,16 @@ units (default)."
   :group 'wttrin
   :type 'integer)
 
+(defcustom wttrin-use-async t
+  "If non-nil, fetch weather data asynchronously to avoid blocking Emacs."
+  :group 'wttrin
+  :type 'boolean)
+
 (defvar wttrin--cache (make-hash-table :test 'equal)
-  "Cache for weather data: cache-key -> (timestamp . data)")
+  "Cache for weather data: cache-key -> (timestamp . data).")
+
+(defvar wttrin--force-refresh nil
+  "When non-nil, bypass cache on next fetch.")
 
 (defun wttrin-additional-url-params ()
   "Concatenates extra information into the URL."
@@ -135,6 +143,35 @@ Returns the weather data as a string, or signals an error on failure."
            'utf-8))
       (kill-buffer buf))))
 
+(defun wttrin-fetch-raw-string-async (query callback)
+  "Asynchronously fetch weather information for QUERY.
+CALLBACK is called with the weather data string when ready, or nil on error."
+  (let* ((url (wttrin--build-url query))
+         (url-request-extra-headers (list wttrin-default-languages))
+         (url-user-agent "curl"))
+    (url-retrieve
+     url
+     (lambda (status)
+       (let ((data nil))
+         (condition-case err
+             (if (plist-get status :error)
+                 (progn
+                   (message "wttrin: Network error - %s" (cdr (plist-get status :error)))
+                   (setq data nil))
+               (unwind-protect
+                   (progn
+                     ;; Skip HTTP headers
+                     (goto-char (point-min))
+                     (re-search-forward "\r?\n\r?\n" nil t)
+                     (setq data (decode-coding-string
+                                 (buffer-substring-no-properties (point) (point-max))
+                                 'utf-8)))
+                 (kill-buffer (current-buffer))))
+           (error
+            (message "wttrin: Error processing response - %s" (error-message-string err))
+            (setq data nil)))
+         (funcall callback data))))))
+
 (defun wttrin-exit ()
   "Exit the wttrin buffer."
   (interactive)
@@ -149,57 +186,77 @@ Returns the weather data as a string, or signals an error on failure."
                          (car wttrin-default-locations)))))
     (when (get-buffer "*wttr.in*")
       (kill-buffer "*wttr.in*"))
-    (wttrin-query new-location)))
+    (if wttrin-use-async
+        (wttrin-query-async new-location)
+      (wttrin-query new-location))))
+
+(defun wttrin--display-weather (location-name raw-string)
+  "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
+  (if (or (null raw-string) (string-match "ERROR" raw-string))
+      (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
+    (let ((buffer (get-buffer-create (format "*wttr.in*")))
+          date-time-stamp location-info)
+      (switch-to-buffer buffer)
+      (setq-local wttrin--current-location location-name)
+      (setq buffer-read-only nil)
+      (erase-buffer)
+
+      ;; set the preferred font attributes for this buffer only
+      (setq buffer-face-mode-face `(:family ,wttrin-font-name :height
+                                             ,wttrin-font-height))
+
+      ;; display buffer text and insert wttr.in data
+      (buffer-face-mode t)
+      (insert (xterm-color-filter raw-string))
+
+      ;; rearrange header information
+      (goto-char (point-min))
+      (forward-line 4)
+      (setq date-time-stamp (buffer-substring-no-properties
+                             (line-beginning-position) (line-end-position)))
+      (goto-char (point-min))
+      (forward-line 6)
+      (setq location-info (buffer-substring-no-properties
+                           (line-beginning-position) (line-end-position)))
+      (goto-char (point-min))
+      (forward-line 8)
+      (delete-region (point-min) (line-beginning-position))
+
+      (insert "\n" location-info "\n" date-time-stamp "\n\n\n")
+
+      ;; provide user instructions
+      (goto-char (point-max))
+      (insert "\nPress: [g] to query another location [r] to refresh [q] to quit")
+
+      ;; align buffer to top
+      (goto-char (point-min))
+
+      ;; create choice keymap and disallow modifying buffer
+      (use-local-map (make-sparse-keymap))
+      (local-set-key "q" 'wttrin-exit)
+      (local-set-key "r" 'wttrin-requery-force)
+      (local-set-key "g" 'wttrin-requery)
+      (setq buffer-read-only t))))
 
 (defun wttrin-query (location-name)
   "Query weather of LOCATION-NAME via wttrin, display the result in new buffer."
   (let ((raw-string (wttrin--get-cached-or-fetch location-name)))
-	(if (string-match "ERROR" raw-string)
-		(message "Cannot retrieve weather data. Perhaps the location was
-misspelled?")
-	  (let ((buffer (get-buffer-create (format "*wttr.in*")))
-			date-time-stamp location-info)
-		(switch-to-buffer buffer)
-		(setq-local wttrin--current-location location-name)
-		(setq buffer-read-only nil)
-		(erase-buffer)
+    (wttrin--display-weather location-name raw-string)))
 
-		;; set the preferred font attributes for this buffer only
-		(setq buffer-face-mode-face `(:family ,wttrin-font-name :height
-											  ,wttrin-font-height))
-
-		;; display buffer text and insert wttr.in data
-		(buffer-face-mode t)
-		(insert (xterm-color-filter raw-string))
-
-		;; rearrange header information
-		(goto-char (point-min))
-		(forward-line 4)
-		(setq date-time-stamp (buffer-substring-no-properties
-							   (line-beginning-position) (line-end-position)))
-		(goto-char (point-min))
-		(forward-line 6)
-		(setq location-info (buffer-substring-no-properties
-							 (line-beginning-position) (line-end-position)))
-		(goto-char (point-min))
-		(forward-line 8)
-		(delete-region (point-min) (line-beginning-position))
-
-		(insert "\n" location-info "\n" date-time-stamp "\n\n\n")
-
-		;; provide user instructions
-		(goto-char (point-max))
-		(insert "\nPress: [g] to query another location [r] to refresh [q] to quit"))
-
-	  ;; align buffer to top
-	  (goto-char (point-min))
-
-	  ;; create choice keymap and disallow modifying buffer
-	  (use-local-map (make-sparse-keymap))
-	  (local-set-key "q" 'wttrin-exit)
-	  (local-set-key "r" 'wttrin-requery-force)
-	  (local-set-key "g" 'wttrin-requery)
-	  (setq buffer-read-only t))))
+(defun wttrin-query-async (location-name)
+  "Asynchronously query weather of LOCATION-NAME, display result when ready."
+  (let ((buffer (get-buffer-create (format "*wttr.in*"))))
+    (switch-to-buffer buffer)
+    (setq buffer-read-only nil)
+    (erase-buffer)
+    (insert "Loading weather for " location-name "...")
+    (setq buffer-read-only t)
+    (wttrin--get-cached-or-fetch-async
+     location-name
+     (lambda (raw-string)
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (wttrin--display-weather location-name raw-string)))))))
 
 (defun wttrin--make-cache-key (location)
   "Create cache key from LOCATION and current settings."
@@ -231,8 +288,34 @@ Returns the weather data string or nil on error."
 			   data)
 		   (signal (car err) (cdr err))))))))
 
-(defvar wttrin--force-refresh nil
-  "When non-nil, bypass cache on next fetch.")
+(defun wttrin--get-cached-or-fetch-async (location callback)
+  "Asynchronously get cached weather for LOCATION or fetch if expired.
+CALLBACK is called with the weather data string when ready, or nil on error."
+  (let* ((cache-key (wttrin--make-cache-key location))
+         (cached (gethash cache-key wttrin--cache))
+         (timestamp (car cached))
+         (data (cdr cached))
+         (now (float-time)))
+    (if (and cached
+             (< (- now timestamp) wttrin-cache-ttl)
+             (not wttrin--force-refresh))
+        ;; Return cached data immediately
+        (funcall callback data)
+      ;; Fetch fresh data asynchronously
+      (wttrin-fetch-raw-string-async
+       location
+       (lambda (fresh-data)
+         (if fresh-data
+             (progn
+               (wttrin--cleanup-cache-if-needed)
+               (puthash cache-key (cons now fresh-data) wttrin--cache)
+               (funcall callback fresh-data))
+           ;; On error, return stale cache if available
+           (if cached
+               (progn
+                 (message "Failed to fetch new data, using cached version")
+                 (funcall callback data))
+             (funcall callback nil))))))))
 
 (defun wttrin--cleanup-cache-if-needed ()
   "Remove old entries if cache exceeds max size."
@@ -263,19 +346,24 @@ Returns the weather data string or nil on error."
   (if wttrin--current-location
 	  (let ((wttrin--force-refresh t))
 		(message "Refreshing weather data...")
-		(wttrin-query wttrin--current-location)
-		(message nil))
+		(if wttrin-use-async
+			(wttrin-query-async wttrin--current-location)
+		  (wttrin-query wttrin--current-location)
+		  (message nil)))
 	(message "No location to refresh")))
 
 ;;;###autoload
 (defun wttrin (location)
-  "Display weather information for LOCATION."
+  "Display weather information for LOCATION.
+Uses asynchronous fetching if `wttrin-use-async' is non-nil."
   (interactive
    (list
     (completing-read "Location Name: " wttrin-default-locations nil nil
                      (when (= (length wttrin-default-locations) 1)
                        (car wttrin-default-locations)))))
-  (wttrin-query location))
+  (if wttrin-use-async
+      (wttrin-query-async location)
+    (wttrin-query location)))
 
 (provide 'wttrin)
 ;;; wttrin.el ends here
