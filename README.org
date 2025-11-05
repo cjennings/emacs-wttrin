@@ -88,7 +88,7 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 [[assets/location-menu.png]]
 
-Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `g` to check another location or `q` to exit, just like it says in the buffer.
+Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `a` to check another location, `g` to refresh, or `q` to quit.
 
 ** Customization
 Wttrin can be customized using the built-in Emacs Customize interface. To do this, type M-x customize ⏎ wttrin ⏎ and use the UI. However, it's more portable and reproducible to keep the customizations in your init file, so do that.

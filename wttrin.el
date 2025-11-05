@@ -230,8 +230,8 @@ CALLBACK is called with the weather data string when ready, or nil on error."
 
 (defvar wttrin-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "g") 'wttrin-requery)
-    (define-key map (kbd "r") 'wttrin-requery-force)
+    (define-key map (kbd "a") 'wttrin-requery)
+    (define-key map (kbd "g") 'wttrin-requery-force)
     ;; Note: 'q' is bound to quit-window by special-mode
     map)
   "Keymap for wttrin-mode.")
@@ -243,9 +243,10 @@ Weather data is displayed in a read-only buffer with the following keybindings:
 
 \\{wttrin-mode-map}"
   (buffer-disable-undo)
-  (setq buffer-face-mode-face `(:family ,wttrin-font-name
-                                :height ,wttrin-font-height))
-  (buffer-face-mode t))
+  ;; Use face-remap instead of buffer-face-mode to preserve xterm-color faces
+  (face-remap-add-relative 'default
+                           :family wttrin-font-name
+                           :height wttrin-font-height))
 
 (defun wttrin--save-debug-data (location-name raw-string)
   "Save RAW-STRING to a timestamped debug file for LOCATION-NAME.
@@ -273,9 +274,15 @@ Returns the path to the saved file."
     (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
 
-      ;; Temporarily allow editing (in case mode is already active)
+      ;; Enable wttrin-mode first (calls kill-all-local-variables)
+      ;; This must be done before setting any buffer-local variables
+      (wttrin-mode)
+
+      ;; Temporarily allow editing
       (let ((inhibit-read-only t))
         (erase-buffer)
+        ;; Initialize xterm-color state AFTER wttrin-mode to prevent it being wiped
+        (setq-local xterm-color--state :char)
         (insert (xterm-color-filter raw-string))
 
         ;; Remove verbose Location: coordinate line
@@ -285,24 +292,17 @@ Returns the path to the saved file."
 
         ;; Add user instructions at the bottom
         (goto-char (point-max))
-        (insert "\n\nPress: [g] to query another location [r] to refresh [q] to quit")
+        (insert "\n\nPress: [a] for another location [g] to refresh [q] to quit")
 
         ;; align buffer to top
         (goto-char (point-min)))
-
-      ;; Enable wttrin-mode (sets up keybindings, read-only, font, etc.)
-      ;; Must be called before setting buffer-local variables
-      (wttrin-mode)
 
       ;; Set location after mode initialization (mode calls kill-all-local-variables)
       (setq-local wttrin--current-location location-name)
 
       ;; Auto-generate debug diagnostics if debug mode is enabled
       (when (featurep 'wttrin-debug)
-        (wttrin--debug-mode-line-info))
-
-      ;; Clear any lingering messages from url-retrieve
-      (message nil))))
+        (wttrin--debug-mode-line-info)))))
 
 (defun wttrin-query (location-name)
   "Asynchronously query weather of LOCATION-NAME, display result when ready."

@@ -87,7 +87,7 @@ Weather report: Paris, France
           ;; Check that keybindings are set (they should be in the local map)
           (should (keymapp (current-local-map)))
           (should (commandp (lookup-key (current-local-map) "q")))
-          (should (commandp (lookup-key (current-local-map) "r")))
+          (should (commandp (lookup-key (current-local-map) "a")))
           (should (commandp (lookup-key (current-local-map) "g")))))
     (test-wttrin--display-weather-teardown)))
 
@@ -103,8 +103,8 @@ Weather report: Paris, France
           (forward-line -2)
           ;; Should contain help text
           (should (search-forward "Press:" nil t))
-          (should (search-forward "[g] to query another location" nil t))
-          (should (search-forward "[r] to refresh" nil t))
+          (should (search-forward "[a] for another location" nil t))
+          (should (search-forward "[g] to refresh" nil t))
           (should (search-forward "[q] to quit" nil t))))
     (test-wttrin--display-weather-teardown)))
 
