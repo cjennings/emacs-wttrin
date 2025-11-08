@@ -37,7 +37,7 @@
   (setq wttrin-debug t)
   ;; Clear any existing debug log
   (when (featurep 'wttrin-debug)
-    (wttrin--debug-clear-log))
+    (wttrin-debug-clear-log))
   ;; Clear cache
   (wttrin-clear-cache)
   ;; Set test configuration
@@ -51,7 +51,7 @@
     (wttrin-mode-line-mode -1))
   (wttrin-clear-cache)
   (when (featurep 'wttrin-debug)
-    (wttrin--debug-clear-log))
+    (wttrin-debug-clear-log))
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-tooltip-data nil))
 

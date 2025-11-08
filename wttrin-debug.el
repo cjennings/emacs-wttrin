@@ -115,14 +115,15 @@ FORMAT-STRING and ARGS are passed to `format'."
       (push (cons timestamp msg) wttrin--debug-log)
       (message "[wttrin-debug %s] %s" timestamp msg))))
 
-(defun wttrin--debug-clear-log ()
+;;;###autoload
+(defun wttrin-debug-clear-log ()
   "Clear the debug log."
   (interactive)
   (setq wttrin--debug-log nil)
   (message "Wttrin debug log cleared"))
 
 ;;;###autoload
-(defun wttrin--debug-show-log ()
+(defun wttrin-debug-show-log ()
   "Display the wttrin debug log in a buffer."
   (interactive)
   (with-current-buffer (get-buffer-create "*wttrin-debug-log*")

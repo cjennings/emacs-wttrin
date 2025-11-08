@@ -55,7 +55,7 @@ M-x debug-wttrin-enable
 ### View Debug Log
 
 ```emacs-lisp
-M-x wttrin--debug-show-log
+M-x wttrin-debug-show-log
 ```
 
 This opens a buffer showing all debug events with timestamps.
@@ -63,7 +63,7 @@ This opens a buffer showing all debug events with timestamps.
 ### Clear Debug Log
 
 ```emacs-lisp
-M-x wttrin--debug-clear-log
+M-x wttrin-debug-clear-log
 ```
 
 ## Test Fixtures
@@ -76,7 +76,7 @@ If wttrin isn't loading in your configuration:
 
 1. **Enable debug mode** (set `wttrin-debug` to `t` before loading)
 2. **Check dependencies**: Run `M-x package-list-packages` and ensure `xterm-color` is installed
-3. **View debug log**: Run `M-x wttrin--debug-show-log` after trying to use wttrin
+3. **View debug log**: Run `M-x wttrin-debug-show-log` after trying to use wttrin
 4. **Check for errors**: Look in `*Messages*` buffer for any error messages
 
 The debug log will show you exactly where the process stops or fails.

@@ -280,7 +280,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
 Once debug mode is enabled, you can view the debug log:
 
 #+begin_src emacs-lisp
-  M-x wttrin--debug-show-log
+  M-x wttrin-debug-show-log
 #+end_src
 
 This shows a timestamped log of all wttrin operations:
@@ -304,7 +304,7 @@ When working correctly, the debug log looks like:
 *** Common Issues
 - *xterm-color missing*: Ensure xterm-color is installed (`M-x package-install RET xterm-color`)
 - *Debug not working*: Remember to set `wttrin-debug t` *before* loading wttrin
-- *Mode-line not showing*: Check `M-x wttrin--debug-show-log` to see if fetch succeeded
+- *Mode-line not showing*: Check `M-x wttrin-debug-show-log` to see if fetch succeeded
 - *No network access*: Debug log will show "Network error" messages
 
 ** History
