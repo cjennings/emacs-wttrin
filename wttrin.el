@@ -209,6 +209,8 @@ This is a pure function with no side effects, suitable for testing."
   "Asynchronously fetch URL and call CALLBACK with decoded response.
 CALLBACK is called with the weather data string when ready, or nil on error.
 Handles header skipping, UTF-8 decoding, and error handling automatically."
+  (when (featurep 'wttrin-debug)
+    (wttrin--debug-log "wttrin--fetch-url: Starting fetch for URL: %s" url))
   (let ((url-request-extra-headers (list wttrin-default-languages))
         (url-user-agent "curl"))
     (url-retrieve
@@ -218,6 +220,9 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
          (condition-case err
              (if (plist-get status :error)
                  (progn
+                   (when (featurep 'wttrin-debug)
+                     (wttrin--debug-log "wttrin--fetch-url: Network error - %s"
+                                        (cdr (plist-get status :error))))
                    (message "wttrin: Network error - %s" (cdr (plist-get status :error)))
                    (setq data nil))
                (unwind-protect
@@ -227,9 +232,15 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
                      (re-search-forward "\r?\n\r?\n" nil t)
                      (setq data (decode-coding-string
                                  (buffer-substring-no-properties (point) (point-max))
-                                 'utf-8)))
+                                 'utf-8))
+                     (when (featurep 'wttrin-debug)
+                       (wttrin--debug-log "wttrin--fetch-url: Successfully fetched %d bytes"
+                                          (length data))))
                  (kill-buffer (current-buffer))))
            (error
+            (when (featurep 'wttrin-debug)
+              (wttrin--debug-log "wttrin--fetch-url: Error processing response - %s"
+                                 (error-message-string err)))
             (message "wttrin: Error processing response - %s" (error-message-string err))
             (setq data nil)))
          (funcall callback data))))))
@@ -430,7 +441,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
   "Fetch weather for favorite location and update mode-line display.
 Uses wttr.in custom format for concise weather with emoji."
   (when (featurep 'wttrin-debug)
-    (message "wttrin mode-line: Fetching weather for %s" wttrin-mode-line-favorite-location))
+    (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-mode-line-favorite-location))
   (when wttrin-mode-line-favorite-location
     (let* ((location wttrin-mode-line-favorite-location)
            ;; Custom format: location + emoji + temp + conditions
@@ -443,22 +454,24 @@ Uses wttr.in custom format for concise weather with emoji."
                        (url-hexify-string location)
                        format-params)))
       (when (featurep 'wttrin-debug)
-        (message "wttrin mode-line: URL = %s" url))
+        (wttrin--debug-log "mode-line-fetch: URL = %s" url))
       (wttrin--fetch-url
        url
        (lambda (data)
-         (when data
-           (let ((trimmed-data (string-trim data)))
-             (when (featurep 'wttrin-debug)
-               (message "wttrin mode-line: Received data = %S" trimmed-data))
-             (wttrin--mode-line-update-display trimmed-data))))))))
+         (if data
+             (let ((trimmed-data (string-trim data)))
+               (when (featurep 'wttrin-debug)
+                 (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data))
+               (wttrin--mode-line-update-display trimmed-data))
+           (when (featurep 'wttrin-debug)
+             (wttrin--debug-log "mode-line-fetch: No data received (network error)"))))))))
 
 (defun wttrin--mode-line-update-display (weather-string)
   "Update mode-line display with WEATHER-STRING.
 Extracts emoji for mode-line, stores full info for tooltip.
 WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: ☀️ +61°F Clear\")."
   (when (featurep 'wttrin-debug)
-    (message "wttrin mode-line: Updating display with: %S" weather-string))
+    (wttrin--debug-log "mode-line-display: Updating display with: %S" weather-string))
   ;; Store full weather info for tooltip
   (setq wttrin--mode-line-tooltip-data weather-string)
   ;; Extract just the emoji for mode-line display
@@ -473,6 +486,9 @@ WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: ☀�
                                           'face (list :family wttrin-mode-line-emoji-font
                                                       :height 1.0))
                             emoji)))
+    (when (featurep 'wttrin-debug)
+      (wttrin--debug-log "mode-line-display: Extracted emoji = %S, font = %s"
+                         emoji wttrin-mode-line-emoji-font))
     (setq wttrin-mode-line-string
           (propertize (concat " " emoji-with-font)
                       'help-echo (lambda (_window _object _pos)
@@ -483,8 +499,9 @@ WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: ☀�
                       'local-map wttrin--mode-line-map)))
   (force-mode-line-update t)
   (when (featurep 'wttrin-debug)
-    (message "wttrin mode-line: Display updated, mode-line-string = %S, tooltip = %S"
-             wttrin-mode-line-string wttrin--mode-line-tooltip-data)))
+    (wttrin--debug-log "mode-line-display: Complete. mode-line-string set = %s, tooltip = %S"
+                       (if wttrin-mode-line-string "YES" "NO")
+                       wttrin--mode-line-tooltip-data)))
 
 (defun wttrin-mode-line-click ()
   "Handle left-click on mode-line weather widget.

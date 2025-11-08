@@ -103,5 +103,38 @@ This function is called automatically when wttrin runs if debug mode is enabled.
 It creates the *wttrin-mode-debug* buffer with diagnostic information."
   (debug-wttrin-mode-line))
 
+(defvar wttrin--debug-log nil
+  "List of debug log entries. Each entry is (timestamp . message).")
+
+(defun wttrin--debug-log (format-string &rest args)
+  "Log a debug message if wttrin-debug is enabled.
+FORMAT-STRING and ARGS are passed to `format'."
+  (when wttrin-debug
+    (let ((msg (apply #'format format-string args))
+          (timestamp (format-time-string "%H:%M:%S.%3N")))
+      (push (cons timestamp msg) wttrin--debug-log)
+      (message "[wttrin-debug %s] %s" timestamp msg))))
+
+(defun wttrin--debug-clear-log ()
+  "Clear the debug log."
+  (interactive)
+  (setq wttrin--debug-log nil)
+  (message "Wttrin debug log cleared"))
+
+;;;###autoload
+(defun wttrin--debug-show-log ()
+  "Display the wttrin debug log in a buffer."
+  (interactive)
+  (with-current-buffer (get-buffer-create "*wttrin-debug-log*")
+    (erase-buffer)
+    (insert "=== WTTRIN DEBUG LOG ===\n")
+    (insert (format "Total entries: %d\n\n" (length wttrin--debug-log)))
+    (if wttrin--debug-log
+        (dolist (entry (reverse wttrin--debug-log))
+          (insert (format "[%s] %s\n" (car entry) (cdr entry))))
+      (insert "(No log entries yet)\n"))
+    (goto-char (point-min))
+    (display-buffer (current-buffer))))
+
 (provide 'wttrin-debug)
 ;;; wttrin-debug.el ends here
