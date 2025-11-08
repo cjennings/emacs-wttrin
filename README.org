@@ -240,15 +240,15 @@ You can customize several aspects of the mode-line weather display:
 If wttrin isn't working as expected, enable debug mode to see detailed logging of what's happening.
 
 *** Enabling Debug Mode
-*Important:* The `wttrin-debug` variable must be set *before* wttrin loads, as it's checked at load time to decide whether to load the debug module.
+*Important:* The `wttrin-debug` variable must be set *before* wttrin loads, as it's checked at load time to decide whether to load the debug module. Use `:preface` to set it before the package loads.
 
 **** For use-package installations:
 #+begin_src emacs-lisp
-  ;; Set debug BEFORE the use-package declaration
-  (setq wttrin-debug t)
-
   (use-package wttrin
     :ensure t
+    :preface
+    ;; Set debug BEFORE wttrin loads
+    (setq wttrin-debug t)
     :custom
     (wttrin-mode-line-favorite-location "Your City"))
 #+end_src
@@ -266,14 +266,13 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
 #+begin_src emacs-lisp
   (add-to-list 'load-path "/path/to/emacs-wttrin")
 
-  ;; Set debug BEFORE (require 'wttrin)
-  (setq wttrin-debug t)
-
   (use-package wttrin
     :preface
+    ;; Load dependencies and set debug BEFORE wttrin loads
     (use-package xterm-color :demand t)
-    ;; ... rest of config
-    )
+    (setq wttrin-debug t)
+    :custom
+    (wttrin-mode-line-favorite-location "Your City"))
 #+end_src
 
 *** Viewing Debug Output
