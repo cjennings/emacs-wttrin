@@ -22,9 +22,10 @@ TEST_DIR = tests
 PROJECT_ROOT = .
 
 # Test files
-UNIT_TESTS = $(filter-out $(TEST_DIR)/test-integration-%.el, $(wildcard $(TEST_DIR)/test-*.el))
-INTEGRATION_TESTS = $(wildcard $(TEST_DIR)/test-integration-%.el)
-ALL_TESTS = $(UNIT_TESTS) $(INTEGRATION_TESTS)
+SMOKE_TESTS = $(wildcard $(TEST_DIR)/test-*-smoke.el)
+INTEGRATION_TESTS = $(wildcard $(TEST_DIR)/test-*-integration-*.el)
+UNIT_TESTS = $(filter-out $(INTEGRATION_TESTS) $(SMOKE_TESTS), $(wildcard $(TEST_DIR)/test-*.el))
+ALL_TESTS = $(SMOKE_TESTS) $(UNIT_TESTS) $(INTEGRATION_TESTS)
 
 # Source files
 MAIN_FILE = wttrin.el
@@ -38,7 +39,7 @@ EMACS_TEST = $(EMACS_BATCH) \
 	--eval "(package-initialize)" \
 	-L $(PROJECT_ROOT) -L $(TEST_DIR)
 
-.PHONY: help test test-all test-unit test-integration test-file test-name \
+.PHONY: help test test-all test-smoke test-unit test-integration test-file test-name \
         validate-parens validate compile lint install-deps \
         clean clean-compiled clean-tests
 
@@ -49,7 +50,8 @@ help:
 	@echo "wttrin Makefile Targets:"
 	@echo ""
 	@echo "  Testing:"
-	@echo "    make test              - Run all tests ($(words $(ALL_TESTS)) files)"
+	@echo "    make test              - Run all tests ($(words $(ALL_TESTS)) files: smoke → unit → integration)"
+	@echo "    make test-smoke        - Run smoke tests only ($(words $(SMOKE_TESTS)) files)"
 	@echo "    make test-unit         - Run unit tests only ($(words $(UNIT_TESTS)) files)"
 	@echo "    make test-integration  - Run integration tests only ($(words $(INTEGRATION_TESTS)) files)"
 	@echo "    make test-file FILE=<filename>  - Run specific test file"
@@ -81,12 +83,31 @@ help:
 test: test-all
 
 test-all:
-	@echo "Running all tests ($(words $(ALL_TESTS)) files)..."
+	@echo "Running all tests ($(words $(ALL_TESTS)) files: smoke → unit → integration)..."
+	@$(MAKE) test-smoke
 	@$(MAKE) test-unit
 	@if [ $(words $(INTEGRATION_TESTS)) -gt 0 ]; then \
 		$(MAKE) test-integration; \
 	fi
-	@echo "✓ All tests complete"
+	@echo "[✓] All tests complete"
+
+test-smoke:
+	@if [ $(words $(SMOKE_TESTS)) -eq 0 ]; then \
+		echo "No smoke tests found"; \
+		exit 0; \
+	fi
+	@echo "Running smoke tests ($(words $(SMOKE_TESTS)) files)..."
+	@failed=0; \
+	for test in $(SMOKE_TESTS); do \
+		echo "  Testing $$test..."; \
+		$(EMACS_TEST) -l ert -l $$test -f ert-run-tests-batch-and-exit || failed=$$((failed + 1)); \
+	done; \
+	if [ $$failed -eq 0 ]; then \
+		echo "[✓] Smoke tests passed"; \
+	else \
+		echo "[✗] Smoke tests failed - package cannot load properly"; \
+		exit 1; \
+	fi
 
 test-unit:
 	@echo "Running unit tests ($(words $(UNIT_TESTS)) files)..."
@@ -96,9 +117,9 @@ test-unit:
 		$(EMACS_TEST) -l ert -l $$test -f ert-run-tests-batch-and-exit || failed=$$((failed + 1)); \
 	done; \
 	if [ $$failed -eq 0 ]; then \
-		echo "✓ All unit tests passed"; \
+		echo "[✓] All unit tests passed"; \
 	else \
-		echo "✗ $$failed unit test file(s) failed"; \
+		echo "[✗] $$failed unit test file(s) failed"; \
 		exit 1; \
 	fi
 
@@ -114,9 +135,9 @@ test-integration:
 		$(EMACS_TEST) -l ert -l $$test -f ert-run-tests-batch-and-exit || failed=$$((failed + 1)); \
 	done; \
 	if [ $$failed -eq 0 ]; then \
-		echo "✓ All integration tests passed"; \
+		echo "[✓] All integration tests passed"; \
 	else \
-		echo "✗ $$failed integration test file(s) failed"; \
+		echo "[✗] $$failed integration test file(s) failed"; \
 		exit 1; \
 	fi
 
@@ -128,7 +149,7 @@ ifndef FILE
 endif
 	@echo "Running tests in $(FILE)..."
 	@$(EMACS_TEST) -l ert -l $(TEST_DIR)/$(FILE) -f ert-run-tests-batch-and-exit
-	@echo "✓ Tests in $(FILE) complete"
+	@echo "[✓] Tests in $(FILE) complete"
 
 test-name:
 ifndef TEST
@@ -141,7 +162,7 @@ endif
 		-l ert \
 		$(foreach test,$(ALL_TESTS),-l $(test)) \
 		--eval '(ert-run-tests-batch-and-exit "$(TEST)")'
-	@echo "✓ Tests matching '$(TEST)' complete"
+	@echo "[✓] Tests matching '$(TEST)' complete"
 
 # ============================================================================
 # Validation Targets
@@ -158,8 +179,8 @@ validate-parens:
 		(error (progn \
 			(message \"ERROR: %s\" err) \
 			(kill-emacs 1))))" 2>&1 > /dev/null && \
-		echo "✓ $(MAIN_FILE) has balanced parentheses" || \
-		(echo "✗ $(MAIN_FILE) has unbalanced parentheses" && exit 1)
+		echo "[✓] $(MAIN_FILE) has balanced parentheses" || \
+		(echo "[✗] $(MAIN_FILE) has unbalanced parentheses" && exit 1)
 
 validate:
 	@echo "Loading wttrin.el to verify compilation..."
@@ -175,8 +196,8 @@ validate:
 			(error (progn \
 				(message \"ERROR loading %s: %s\" \"$(MAIN_FILE)\" err) \
 				(kill-emacs 1))))" && \
-		echo "✓ $(MAIN_FILE) loaded successfully" || \
-		(echo "✗ $(MAIN_FILE) failed to load" && exit 1)
+		echo "[✓] $(MAIN_FILE) loaded successfully" || \
+		(echo "[✗] $(MAIN_FILE) failed to load" && exit 1)
 
 compile:
 	@echo "Byte-compiling wttrin.el..."
@@ -188,7 +209,7 @@ compile:
 		--eval "(progn \
 			(setq byte-compile-error-on-warn nil) \
 			(batch-byte-compile))" $(MAIN_FILE)
-	@echo "✓ Compilation complete"
+	@echo "[✓] Compilation complete"
 
 lint:
 	@echo "Running linters on wttrin.el..."
@@ -205,8 +226,8 @@ lint:
 				(package-lint-current-buffer)) \
 			(when (featurep 'elisp-lint) \
 				(elisp-lint-file \"$(MAIN_FILE)\")))" && \
-		echo "✓ All linting checks passed" || \
-		echo "⚠ Linting issues found"
+		echo "[✓] All linting checks passed" || \
+		echo "[!] Linting issues found"
 
 # ============================================================================
 # Setup Targets
@@ -220,21 +241,21 @@ install-deps:
 		--eval "(package-initialize)" \
 		--eval "(unless package-archive-contents (package-refresh-contents))" \
 		--eval "(package-install 'xterm-color)"
-	@echo "✓ Dependencies installed"
+	@echo "[✓] Dependencies installed"
 
 # ============================================================================
 # Utility Targets
 # ============================================================================
 
 clean: clean-tests clean-compiled
-	@echo "✓ Clean complete"
+	@echo "[✓] Clean complete"
 
 clean-compiled:
 	@echo "Removing compiled files (.elc, .eln)..."
 	@find $(PROJECT_ROOT) -type f \( -name "*.eln" -o -name "*.elc" \) -delete
-	@echo "✓ Compiled files removed"
+	@echo "[✓] Compiled files removed"
 
 clean-tests:
 	@echo "Removing test artifacts..."
 	@rm -rf $(HOME)/.temp-emacs-tests
-	@echo "✓ Test artifacts removed"
+	@echo "[✓] Test artifacts removed"
