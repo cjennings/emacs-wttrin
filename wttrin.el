@@ -183,12 +183,12 @@ This is a pure function with no side effects, suitable for testing."
           (wttrin-additional-url-params)
           "A"))
 
-(defun wttrin-fetch-raw-string (query callback)
-  "Asynchronously fetch weather information for QUERY.
-CALLBACK is called with the weather data string when ready, or nil on error."
-  (let* ((url (wttrin--build-url query))
-         (url-request-extra-headers (list wttrin-default-languages))
-         (url-user-agent "curl"))
+(defun wttrin--fetch-url (url callback)
+  "Asynchronously fetch URL and call CALLBACK with decoded response.
+CALLBACK is called with the weather data string when ready, or nil on error.
+Handles header skipping, UTF-8 decoding, and error handling automatically."
+  (let ((url-request-extra-headers (list wttrin-default-languages))
+        (url-user-agent "curl"))
     (url-retrieve
      url
      (lambda (status)
@@ -211,6 +211,11 @@ CALLBACK is called with the weather data string when ready, or nil on error."
             (message "wttrin: Error processing response - %s" (error-message-string err))
             (setq data nil)))
          (funcall callback data))))))
+
+(defun wttrin-fetch-raw-string (query callback)
+  "Asynchronously fetch weather information for QUERY.
+CALLBACK is called with the weather data string when ready, or nil on error."
+  (wttrin--fetch-url (wttrin--build-url query) callback))
 
 (defun wttrin-exit ()
   "Exit the wttrin buffer."
@@ -401,38 +406,17 @@ Uses wttr.in custom format for concise weather with emoji."
                             "?format=%l:+%c+%t+%C"))
            (url (concat "https://wttr.in/"
                        (url-hexify-string location)
-                       format-params))
-           (url-request-extra-headers (list wttrin-default-languages))
-           (url-user-agent "curl"))
+                       format-params)))
       (when (featurep 'wttrin-debug)
         (message "wttrin mode-line: URL = %s" url))
-      (url-retrieve
+      (wttrin--fetch-url
        url
-       (lambda (status)
-         (let ((data nil))
-           (condition-case err
-               (if (plist-get status :error)
-                   (progn
-                     (message "wttrin mode-line: Network error - %s"
-                             (cdr (plist-get status :error)))
-                     (setq data nil))
-                 (unwind-protect
-                     (progn
-                       ;; Skip HTTP headers
-                       (goto-char (point-min))
-                       (re-search-forward "\r?\n\r?\n" nil t)
-                       (setq data (string-trim
-                                  (decode-coding-string
-                                   (buffer-substring-no-properties (point) (point-max))
-                                   'utf-8)))
-                       (when (featurep 'wttrin-debug)
-                         (message "wttrin mode-line: Received data = %S" data)))
-                   (kill-buffer (current-buffer))))
-             (error
-              (message "wttrin mode-line: Error - %s" (error-message-string err))
-              (setq data nil)))
-           (when data
-             (wttrin--mode-line-update-display data))))))))
+       (lambda (data)
+         (when data
+           (let ((trimmed-data (string-trim data)))
+             (when (featurep 'wttrin-debug)
+               (message "wttrin mode-line: Received data = %S" trimmed-data))
+             (wttrin--mode-line-update-display trimmed-data))))))))
 
 (defun wttrin--mode-line-update-display (weather-string)
   "Update mode-line display with WEATHER-STRING.
