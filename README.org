@@ -61,22 +61,46 @@ If you typically use Quelpa to install from the bleeding edge, here's what to pu
 
 Wttrin is pulled to MELPA repositories regularly, so using Quelpa for Wttrin may provide no advantage over use-package. Regardless, Wttrin's main branch should always be stable, so you'll be fine.
 
-*** Manual
-Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. If you're manually installing Wttrin, you'll need to install the xterm-color package also.
+*** Local Development / Manual Install
+Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. For local development or manual installations, you need to ensure xterm-color loads properly.
 
-1 - Clone or download both the xterm-color and Wttrin repositories.
+**** Using use-package (Recommended for Development)
+If you're developing wttrin or using a local clone, use this pattern to ensure xterm-color loads before wttrin:
+
+#+begin_src emacs-lisp
+  ;; Point to your local wttrin directory
+  (add-to-list 'load-path "/path/to/emacs-wttrin")
+
+  (use-package wttrin
+    :defer t
+    :preface
+    ;; Load xterm-color dependency BEFORE wttrin loads
+    ;; The :demand t ensures xterm-color is loaded immediately
+    (use-package xterm-color
+      :demand t)
+    :bind ("C-c w" . wttrin)
+    :custom
+    (wttrin-default-locations '("Your City" "Another City")))
+#+end_src
+
+*Important:* The xterm-color package must be in your `:preface` section with `:demand t` to load before wttrin initializes. This is the recommended pattern for local development.
+
+**** Without use-package
+If you prefer not to use use-package, manually install both packages:
+
+1 - Clone or download both repositories:
 
 #+begin_src sh
   git clone https://github.com/atomontage/xterm-color.git
   git clone https://github.com/cjennings/emacs-wttrin.git
 #+end_src
 
-2 - Add the following to your Emacs init file:
+2 - Add to your Emacs init file:
 
 #+begin_src elisp
   (add-to-list 'load-path "/path/to/cloned/repo/emacs-wttrin")
   (add-to-list 'load-path "/path/to/cloned/repo/xterm-color")
-  (require 'xterm-color)
+  (require 'xterm-color)  ;; Must load BEFORE wttrin
   (require 'wttrin)
   (define-key global-map (kbd "C-c w") 'wttrin)
 #+end_src
@@ -211,6 +235,77 @@ You can customize several aspects of the mode-line weather display:
 #+end_src
 
 *Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
+
+** Debugging and Troubleshooting
+If wttrin isn't working as expected, enable debug mode to see detailed logging of what's happening.
+
+*** Enabling Debug Mode
+*Important:* The `wttrin-debug` variable must be set *before* wttrin loads, as it's checked at load time to decide whether to load the debug module.
+
+**** For use-package installations:
+#+begin_src emacs-lisp
+  ;; Set debug BEFORE the use-package declaration
+  (setq wttrin-debug t)
+
+  (use-package wttrin
+    :ensure t
+    :custom
+    (wttrin-mode-line-favorite-location "Your City"))
+#+end_src
+
+*❌ This will NOT work* (debug set too late):
+#+begin_src emacs-lisp
+  (use-package wttrin
+    :ensure t
+    :custom
+    (wttrin-debug t)  ;; TOO LATE - wttrin already loaded!
+    (wttrin-mode-line-favorite-location "Your City"))
+#+end_src
+
+**** For manual/development installations:
+#+begin_src emacs-lisp
+  (add-to-list 'load-path "/path/to/emacs-wttrin")
+
+  ;; Set debug BEFORE (require 'wttrin)
+  (setq wttrin-debug t)
+
+  (use-package wttrin
+    :preface
+    (use-package xterm-color :demand t)
+    ;; ... rest of config
+    )
+#+end_src
+
+*** Viewing Debug Output
+Once debug mode is enabled, you can view the debug log:
+
+#+begin_src emacs-lisp
+  M-x wttrin--debug-show-log
+#+end_src
+
+This shows a timestamped log of all wttrin operations:
+- URL fetch attempts
+- Data received (with byte counts)
+- Mode-line display updates
+- Emoji extraction
+- Any errors encountered
+
+*** Example Debug Output
+When working correctly, the debug log looks like:
+#+begin_example
+[11:51:46.490] mode-line-fetch: Starting fetch for Berkeley, CA
+[11:51:46.490] mode-line-fetch: URL = https://wttr.in/Berkeley%2C%20CA?m&format=%l:+%c+%t+%C
+[11:51:46.490] mode-line-fetch: Received data = "Berkeley, CA: ☀️ +62°F Clear"
+[11:51:46.490] mode-line-display: Updating display with: "Berkeley, CA: ☀️ +62°F Clear"
+[11:51:46.490] mode-line-display: Extracted emoji = "☀", font = Noto Color Emoji
+[11:51:46.490] mode-line-display: Complete. mode-line-string set = YES
+#+end_example
+
+*** Common Issues
+- *xterm-color missing*: Ensure xterm-color is installed (`M-x package-install RET xterm-color`)
+- *Debug not working*: Remember to set `wttrin-debug t` *before* loading wttrin
+- *Mode-line not showing*: Check `M-x wttrin--debug-show-log` to see if fetch succeeded
+- *No network access*: Debug log will show "Network error" messages
 
 ** History
 Wttrin was originally the work of Carl X. Su and Ono Hiroko. All credit and appreciation for the original idea and code is theirs, not mine. Over time the package stopped working due to the inevitablity of bit-rot and Emacs's own evolution. I loved using this package, so I adopted Wttrin to maintain and evolve for the Emacs community, and as thanks to the original authors.
