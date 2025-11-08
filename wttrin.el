@@ -229,7 +229,6 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
                    (when (featurep 'wttrin-debug)
                      (wttrin--debug-log "wttrin--fetch-url: Network error - %s"
                                         (cdr (plist-get status :error))))
-                   (message "wttrin: Network error - %s" (cdr (plist-get status :error)))
                    (setq data nil))
                (unwind-protect
                    (progn
@@ -247,7 +246,6 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
             (when (featurep 'wttrin-debug)
               (wttrin--debug-log "wttrin--fetch-url: Error processing response - %s"
                                  (error-message-string err)))
-            (message "wttrin: Error processing response - %s" (error-message-string err))
             (setq data nil)))
          (funcall callback data))))))
 
@@ -304,7 +302,8 @@ Returns the path to the saved file."
       (insert (format "wttrin-unit-system: %s\n" wttrin-unit-system))
       (insert "\n--- Raw Response ---\n\n")
       (insert raw-string))
-    (message "Debug data saved to: %s" filepath)
+    (when (featurep 'wttrin-debug)
+      (wttrin--debug-log "Debug data saved to: %s" filepath))
     filepath))
 
 (defun wttrin--validate-weather-data (raw-string)
@@ -536,9 +535,9 @@ Force-refresh cache and update tooltip without opening buffer."
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
   (when (featurep 'wttrin-debug)
-    (message "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
-             wttrin-mode-line-favorite-location
-             wttrin-mode-line-refresh-interval))
+    (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
+                       wttrin-mode-line-favorite-location
+                       wttrin-mode-line-refresh-interval))
   (when wttrin-mode-line-favorite-location
     ;; Delay initial fetch to allow network to initialize during startup
     (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
@@ -550,14 +549,14 @@ Force-refresh cache and update tooltip without opening buffer."
                       wttrin-mode-line-refresh-interval
                       #'wttrin--mode-line-fetch-weather))
     (when (featurep 'wttrin-debug)
-      (message "wttrin mode-line: Initial fetch scheduled in %s seconds, then every %s seconds"
-               wttrin-mode-line-startup-delay
-               wttrin-mode-line-refresh-interval))))
+      (wttrin--debug-log "wttrin mode-line: Initial fetch scheduled in %s seconds, then every %s seconds"
+                         wttrin-mode-line-startup-delay
+                         wttrin-mode-line-refresh-interval))))
 
 (defun wttrin--mode-line-stop ()
   "Stop mode-line weather display and cancel timer."
   (when (featurep 'wttrin-debug)
-    (message "wttrin mode-line: Stopping mode-line display"))
+    (wttrin--debug-log "wttrin mode-line: Stopping mode-line display"))
   (when wttrin--mode-line-timer
     (cancel-timer wttrin--mode-line-timer)
     (setq wttrin--mode-line-timer nil))
@@ -574,16 +573,16 @@ When enabled, shows weather for `wttrin-mode-line-favorite-location'."
   (if wttrin-mode-line-mode
       (progn
         (when (featurep 'wttrin-debug)
-          (message "wttrin mode-line: Mode enabled"))
+          (wttrin--debug-log "wttrin mode-line: Mode enabled"))
         (wttrin--mode-line-start)
         ;; Add modeline string to global-mode-string for custom modelines
         (if global-mode-string
             (add-to-list 'global-mode-string 'wttrin-mode-line-string 'append)
           (setq global-mode-string '("" wttrin-mode-line-string)))
         (when (featurep 'wttrin-debug)
-          (message "wttrin mode-line: Added to global-mode-string = %S" global-mode-string)))
+          (wttrin--debug-log "wttrin mode-line: Added to global-mode-string = %S" global-mode-string)))
     (when (featurep 'wttrin-debug)
-      (message "wttrin mode-line: Mode disabled"))
+      (wttrin--debug-log "wttrin mode-line: Mode disabled"))
     (wttrin--mode-line-stop)
     ;; Remove from global-mode-string
     (setq global-mode-string

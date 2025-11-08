@@ -112,12 +112,12 @@ It creates the *wttrin-mode-debug* buffer with diagnostic information."
 
 (defun wttrin--debug-log (format-string &rest args)
   "Log a debug message if wttrin-debug is enabled.
-FORMAT-STRING and ARGS are passed to `format'."
+FORMAT-STRING and ARGS are passed to `format'.
+Messages are stored in `wttrin--debug-log' for later review."
   (when wttrin-debug
     (let ((msg (apply #'format format-string args))
           (timestamp (format-time-string "%H:%M:%S.%3N")))
-      (push (cons timestamp msg) wttrin--debug-log)
-      (message "[wttrin-debug %s] %s" timestamp msg))))
+      (push (cons timestamp msg) wttrin--debug-log))))
 
 ;;;###autoload
 (defun wttrin-debug-clear-log ()
