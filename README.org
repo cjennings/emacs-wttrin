@@ -264,9 +264,8 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
 
 **** For manual/development installations:
 #+begin_src emacs-lisp
-  (add-to-list 'load-path "/path/to/emacs-wttrin")
-
   (use-package wttrin
+    :ensure t
     :preface
     ;; Load dependencies and set debug BEFORE wttrin loads
     (use-package xterm-color :demand t)
