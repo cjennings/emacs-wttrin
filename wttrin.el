@@ -180,6 +180,15 @@ Set this to t BEFORE loading wttrin, typically in your init file:
 (defvar wttrin--mode-line-tooltip-data nil
   "Cached full weather data for tooltip display.")
 
+(defvar wttrin--mode-line-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-1] 'wttrin-mode-line-click)
+    (define-key map [mode-line mouse-3] 'wttrin-mode-line-force-refresh)
+    map)
+  "Keymap for mode-line weather widget interactions.
+Left-click (mouse-1): refresh weather and open buffer.
+Right-click (mouse-3): force-refresh cache and update tooltip.")
+
 (defun wttrin-additional-url-params ()
   "Concatenates extra information into the URL."
   (if wttrin-unit-system
@@ -471,12 +480,7 @@ WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: â˜€ï¸
                                        (format "Weather for %s\nClick to refresh"
                                                wttrin-mode-line-favorite-location)))
                       'mouse-face 'mode-line-highlight
-                      'local-map (let ((map (make-sparse-keymap)))
-                                   (define-key map [mode-line mouse-1]
-                                     'wttrin-mode-line-click)
-                                   (define-key map [mode-line mouse-3]
-                                     'wttrin-mode-line-force-refresh)
-                                   map))))
+                      'local-map wttrin--mode-line-map)))
   (force-mode-line-update t)
   (when (featurep 'wttrin-debug)
     (message "wttrin mode-line: Display updated, mode-line-string = %S, tooltip = %S"
