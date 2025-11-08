@@ -32,6 +32,10 @@
 ;; wttrin-debug.el is loaded by wttrin.el, so wttrin is already loaded
 ;; No need for (require 'wttrin) here
 
+;; Declare variables and functions from wttrin.el
+(defvar wttrin-debug)
+(declare-function wttrin--get-cached-or-fetch "wttrin")
+
 ;;;###autoload
 (defun debug-wttrin-show-raw (location)
   "Fetch and display raw wttr.in data for LOCATION with line numbers.

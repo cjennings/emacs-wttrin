@@ -135,9 +135,12 @@
   (should (numberp wttrin-mode-line-startup-delay)))
 
 (ert-deftest test-wttrin-mode-line-startup-delay-reasonable-range ()
-  "Test that startup delay is in reasonable range (1-10 seconds)."
-  (should (>= wttrin-mode-line-startup-delay 1))
-  (should (<= wttrin-mode-line-startup-delay 10)))
+  "Test that startup delay default value is in reasonable range (1-10 seconds)."
+  ;; Check the defcustom's standard value, not current runtime value
+  ;; (other tests may set it to 0 for faster testing)
+  (let ((default-value (eval (car (get 'wttrin-mode-line-startup-delay 'standard-value)))))
+    (should (>= default-value 1))
+    (should (<= default-value 10))))
 
 (provide 'test-wttrin--cleanup-cache-constants)
 ;;; test-wttrin--cleanup-cache-constants.el ends here

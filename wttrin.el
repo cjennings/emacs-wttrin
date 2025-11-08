@@ -39,6 +39,7 @@
 
 ;; Declare functions from wttrin-debug.el (loaded conditionally)
 (declare-function wttrin--debug-mode-line-info "wttrin-debug")
+(declare-function wttrin--debug-log "wttrin-debug")
 
 (defgroup wttrin nil
   "Emacs frontend for the weather web service wttr.in."
@@ -119,9 +120,13 @@ Default is 900 seconds (15 minutes)."
 (defcustom wttrin-mode-line-startup-delay 3
   "Seconds to delay initial mode-line weather fetch after Emacs starts.
 This allows network stack and daemon initialization to complete before
-fetching weather data.  Recommended range: 1-5 seconds."
+fetching weather data.  Must be between 1 and 10 seconds."
   :group 'wttrin
-  :type 'integer)
+  :type '(restricted-sexp :match-alternatives
+                          ((lambda (val)
+                             (and (integerp val)
+                                  (>= val 1)
+                                  (<= val 10))))))
 
 (defcustom wttrin-mode-line-emoji-font "Noto Color Emoji"
   "Font family to use for mode-line weather emoji.
@@ -147,7 +152,8 @@ display with `wttrin-mode-line-mode'."
   "Enable debug functions for troubleshooting wttrin behavior.
 When non-nil, loads wttrin-debug.el which provides:
 - Automatic mode-line diagnostic logging when wttrin runs
-- Raw weather data saved to timestamped files in `temporary-file-directory'
+- Raw weather data saved to timestamped files in variable
+  `temporary-file-directory'
 - Interactive debug commands for troubleshooting
 
 Set this to t BEFORE loading wttrin, typically in your init file:
@@ -186,8 +192,8 @@ Set this to t BEFORE loading wttrin, typically in your init file:
     (define-key map [mode-line mouse-3] 'wttrin-mode-line-force-refresh)
     map)
   "Keymap for mode-line weather widget interactions.
-Left-click (mouse-1): refresh weather and open buffer.
-Right-click (mouse-3): force-refresh cache and update tooltip.")
+Left-click: refresh weather and open buffer.
+Right-click: force-refresh cache and update tooltip.")
 
 (defun wttrin-additional-url-params ()
   "Concatenates extra information into the URL."
@@ -302,8 +308,8 @@ Returns the path to the saved file."
     filepath))
 
 (defun wttrin--validate-weather-data (raw-string)
-  "Return t if RAW-STRING contains valid weather data.
-Returns nil if data is missing or contains errors."
+  "Check if RAW-STRING has valid weather data.
+Return t if valid, nil if missing or contains errors."
   (not (or (null raw-string) (string-match "ERROR" raw-string))))
 
 (defun wttrin--process-weather-content (raw-string)
@@ -403,19 +409,27 @@ CALLBACK is called with the weather data string when ready, or nil on error."
                  (funcall callback data))
              (funcall callback nil))))))))
 
+(defun wttrin--get-cache-entries-by-age ()
+  "Return list of (key . timestamp) pairs sorted oldest-first.
+Extracts all cache entries and sorts them by timestamp in ascending order.
+Returns a list where each element is a cons cell (key . timestamp)."
+  (let ((entries nil))
+    (maphash (lambda (key value)
+               (push (cons key (car value)) entries))  ; car value = timestamp
+             wttrin--cache)
+    (sort entries (lambda (a b) (< (cdr a) (cdr b))))))
+
 (defun wttrin--cleanup-cache-if-needed ()
-  "Remove old entries if cache exceeds max size."
+  "Remove oldest entries if cache exceeds max size.
+Removes oldest entries based on `wttrin--cache-cleanup-percentage'
+when cache count exceeds `wttrin-cache-max-entries'.
+This creates headroom to avoid frequent cleanups."
   (when (> (hash-table-count wttrin--cache) wttrin-cache-max-entries)
-	(let ((entries nil))
-	  (maphash (lambda (k v)
-				 (push (cons k (car v)) entries))
-			   wttrin--cache)
-	  (setq entries (sort entries (lambda (a b) (< (cdr a) (cdr b)))))
-	  ;; Remove oldest entries based on wttrin--cache-cleanup-percentage
-	  (dotimes (_ (floor (* (length entries) wttrin--cache-cleanup-percentage)))
-		(when entries
-		  (remhash (caar entries) wttrin--cache)
-		  (setq entries (cdr entries)))))))
+    (let* ((entries-by-age (wttrin--get-cache-entries-by-age))
+           (num-to-remove (floor (* (length entries-by-age)
+                                    wttrin--cache-cleanup-percentage))))
+      (dotimes (i num-to-remove)
+        (remhash (car (nth i entries-by-age)) wttrin--cache)))))
 
 (defun wttrin-clear-cache ()
   "Clear the weather cache."
@@ -469,7 +483,8 @@ Uses wttr.in custom format for concise weather with emoji."
 (defun wttrin--mode-line-update-display (weather-string)
   "Update mode-line display with WEATHER-STRING.
 Extracts emoji for mode-line, stores full info for tooltip.
-WEATHER-STRING format: \"Location: emoji temp conditions\" (e.g., \"Paris: ☀️ +61°F Clear\")."
+WEATHER-STRING format: \"Location: emoji temp conditions\",
+e.g., \"Paris: ☀️ +61°F Clear\"."
   (when (featurep 'wttrin-debug)
     (wttrin--debug-log "mode-line-display: Updating display with: %S" weather-string))
   ;; Store full weather info for tooltip

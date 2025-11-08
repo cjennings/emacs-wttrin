@@ -35,14 +35,16 @@
   "Set up test environment with debug enabled."
   ;; Enable debug mode
   (setq wttrin-debug t)
+  ;; Load debug module if not already loaded
+  (unless (featurep 'wttrin-debug)
+    (require 'wttrin-debug))
   ;; Clear any existing debug log
-  (when (featurep 'wttrin-debug)
-    (wttrin-debug-clear-log))
+  (wttrin-debug-clear-log)
   ;; Clear cache
   (wttrin-clear-cache)
   ;; Set test configuration
   (setq wttrin-mode-line-favorite-location "Berkeley, CA")
-  (setq wttrin-mode-line-startup-delay 0)
+  (setq wttrin-mode-line-startup-delay 1)  ; Minimum valid value
   (setq wttrin-unit-system "m"))
 
 (defun test-wttrin-teardown ()
@@ -50,8 +52,7 @@
   (when (boundp 'wttrin-mode-line-mode)
     (wttrin-mode-line-mode -1))
   (wttrin-clear-cache)
-  (when (featurep 'wttrin-debug)
-    (wttrin-debug-clear-log))
+  (wttrin-debug-clear-log)
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-tooltip-data nil))
 
@@ -65,13 +66,10 @@
 URL is ignored. CALLBACK is called with mock data."
   (when (featurep 'wttrin-debug)
     (wttrin--debug-log "MOCK-FETCH: Called with URL: %s" url))
-  ;; Simulate async by using run-at-time with 0 delay
-  (run-at-time
-   0 nil
-   (lambda ()
-     (when (featurep 'wttrin-debug)
-       (wttrin--debug-log "MOCK-FETCH: Calling callback with mock data"))
-     (funcall callback test-wttrin-sample-weather-data))))
+  ;; Call callback directly (synchronous) since run-at-time doesn't work well in batch mode
+  (when (featurep 'wttrin-debug)
+    (wttrin--debug-log "MOCK-FETCH: Calling callback with mock data"))
+  (funcall callback test-wttrin-sample-weather-data))
 
 (defmacro with-mocked-fetch (&rest body)
   "Execute BODY with wttrin--fetch-url mocked to return test data."
@@ -90,7 +88,7 @@ URL is ignored. CALLBACK is called with mock data."
   (unwind-protect
       (with-mocked-fetch
        ;; Clear debug log
-       (wttrin--debug-clear-log)
+       (wttrin-debug-clear-log)
 
        ;; Fetch weather for mode-line
        (wttrin--mode-line-fetch-weather)
@@ -129,33 +127,26 @@ URL is ignored. CALLBACK is called with mock data."
   (unwind-protect
       (progn
         ;; Clear debug log
-        (wttrin--debug-clear-log)
+        (wttrin-debug-clear-log)
 
-        ;; Mock full weather fetch
+        ;; Mock full weather fetch (synchronous for batch mode)
         (cl-letf (((symbol-function 'wttrin--fetch-url)
                    (lambda (url callback)
                      (when (featurep 'wttrin-debug)
                        (wttrin--debug-log "MOCK-FETCH: Full weather query for URL: %s" url))
-                     (run-at-time 0 nil
-                                  (lambda ()
-                                    (funcall callback test-wttrin-sample-full-weather))))))
+                     ;; Call directly instead of using run-at-time (doesn't work in batch)
+                     (funcall callback test-wttrin-sample-full-weather))))
 
-          ;; Start the query (async, so we'll check results after delay)
+          ;; Start the query (now synchronous with mocked fetch)
           (wttrin-query "Berkeley, CA")
-
-          ;; Wait for async operations
-          (sleep-for 0.2)
 
           ;; Verify buffer was created
           (should (get-buffer "*wttr.in*"))
 
-          ;; Verify debug log shows URL building
+          ;; Verify debug log shows mock was called
           (let ((log-messages (mapcar #'cdr wttrin--debug-log)))
-            ;; Should have logged fetch starting
-            (should (seq-some (lambda (msg) (string-match-p "wttrin--fetch-url: Starting" msg))
-                             log-messages))
-            ;; Should have logged success
-            (should (seq-some (lambda (msg) (string-match-p "Successfully fetched" msg))
+            ;; Should have logged the mock fetch
+            (should (seq-some (lambda (msg) (string-match-p "MOCK-FETCH: Full weather query" msg))
                              log-messages)))))
     ;; Cleanup
     (when (get-buffer "*wttr.in*")
@@ -168,14 +159,15 @@ URL is ignored. CALLBACK is called with mock data."
   (unwind-protect
       (with-mocked-fetch
        ;; Clear debug log
-       (wttrin--debug-clear-log)
+       (wttrin-debug-clear-log)
 
        ;; Enable mode-line mode
        (wttrin-mode-line-mode 1)
        (should wttrin-mode-line-mode)
 
-       ;; Wait longer for initial fetch and callback (async operations take time)
-       (sleep-for 0.3)
+       ;; Manually trigger the initial fetch instead of waiting for timer
+       ;; (timers don't process well in batch mode)
+       (wttrin--mode-line-fetch-weather)
 
        ;; Verify mode-line string is set
        (should wttrin-mode-line-string)
@@ -200,7 +192,7 @@ URL is ignored. CALLBACK is called with mock data."
   (unwind-protect
       (progn
         ;; Clear debug log
-        (wttrin--debug-clear-log)
+        (wttrin-debug-clear-log)
 
         ;; Mock fetch that returns nil (simulating network error)
         (cl-letf (((symbol-function 'wttrin--fetch-url)
@@ -227,7 +219,7 @@ URL is ignored. CALLBACK is called with mock data."
   (unwind-protect
       (progn
         ;; Clear and add some test log entries
-        (wttrin--debug-clear-log)
+        (wttrin-debug-clear-log)
         (wttrin--debug-log "Test message 1")
         (wttrin--debug-log "Test message 2 with arg: %s" "value")
 
@@ -244,7 +236,7 @@ URL is ignored. CALLBACK is called with mock data."
                            messages)))
 
         ;; Clear log
-        (wttrin--debug-clear-log)
+        (wttrin-debug-clear-log)
         (should (= 0 (length wttrin--debug-log))))
     (test-wttrin-teardown)))
 
