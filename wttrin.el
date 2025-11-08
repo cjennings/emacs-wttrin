@@ -268,13 +268,35 @@ Returns the path to the saved file."
     (message "Debug data saved to: %s" filepath)
     filepath))
 
+(defun wttrin--validate-weather-data (raw-string)
+  "Return t if RAW-STRING contains valid weather data.
+Returns nil if data is missing or contains errors."
+  (not (or (null raw-string) (string-match "ERROR" raw-string))))
+
+(defun wttrin--process-weather-content (raw-string)
+  "Process RAW-STRING: apply ANSI filtering and remove verbose lines.
+Returns processed string ready for display."
+  (let ((processed (xterm-color-filter raw-string)))
+    ;; Remove verbose Location: coordinate line
+    (with-temp-buffer
+      (insert processed)
+      (goto-char (point-min))
+      (while (re-search-forward "^\\s-*Location:.*\\[.*\\].*$" nil t)
+        (delete-region (line-beginning-position) (1+ (line-end-position))))
+      (buffer-string))))
+
+(defun wttrin--add-buffer-instructions ()
+  "Add user instructions at bottom of current buffer."
+  (goto-char (point-max))
+  (insert "\n\nPress: [a] for another location [g] to refresh [q] to quit"))
+
 (defun wttrin--display-weather (location-name raw-string)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
   ;; Save debug data if enabled
   (when wttrin-debug
     (wttrin--save-debug-data location-name raw-string))
 
-  (if (or (null raw-string) (string-match "ERROR" raw-string))
+  (if (not (wttrin--validate-weather-data raw-string))
       (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
     (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
@@ -288,17 +310,8 @@ Returns the path to the saved file."
         (erase-buffer)
         ;; Initialize xterm-color state AFTER wttrin-mode to prevent it being wiped
         (setq-local xterm-color--state :char)
-        (insert (xterm-color-filter raw-string))
-
-        ;; Remove verbose Location: coordinate line
-        (goto-char (point-min))
-        (while (re-search-forward "^\\s-*Location:.*\\[.*\\].*$" nil t)
-          (delete-region (line-beginning-position) (1+ (line-end-position))))
-
-        ;; Add user instructions at the bottom
-        (goto-char (point-max))
-        (insert "\n\nPress: [a] for another location [g] to refresh [q] to quit")
-
+        (insert (wttrin--process-weather-content raw-string))
+        (wttrin--add-buffer-instructions)
         ;; align buffer to top
         (goto-char (point-min)))
 
