@@ -95,6 +95,12 @@ units (default)."
   :group 'wttrin
   :type 'integer)
 
+(defconst wttrin--cache-cleanup-percentage 0.20
+  "Percentage of cache entries to remove when max size is exceeded.
+When cache reaches `wttrin-cache-max-entries', remove the oldest 20%
+to avoid frequent cleanup cycles.  This value (0.20) means remove 1/5
+of entries, providing a reasonable buffer before the next cleanup.")
+
 (defcustom wttrin-mode-line-favorite-location nil
   "Favorite location to display weather for in the mode-line.
 When nil, mode-line weather display is disabled.
@@ -107,6 +113,13 @@ The weather icon and tooltip will update automatically in the background."
 (defcustom wttrin-mode-line-refresh-interval 900
   "Interval in seconds to refresh mode-line weather data.
 Default is 900 seconds (15 minutes)."
+  :group 'wttrin
+  :type 'integer)
+
+(defcustom wttrin-mode-line-startup-delay 3
+  "Seconds to delay initial mode-line weather fetch after Emacs starts.
+This allows network stack and daemon initialization to complete before
+fetching weather data.  Recommended range: 1-5 seconds."
   :group 'wttrin
   :type 'integer)
 
@@ -378,8 +391,8 @@ CALLBACK is called with the weather data string when ready, or nil on error."
 				 (push (cons k (car v)) entries))
 			   wttrin--cache)
 	  (setq entries (sort entries (lambda (a b) (< (cdr a) (cdr b)))))
-	  ;; Remove oldest 20% of entries
-	  (dotimes (_ (/ (length entries) 5))
+	  ;; Remove oldest entries based on wttrin--cache-cleanup-percentage
+	  (dotimes (_ (floor (* (length entries) wttrin--cache-cleanup-percentage)))
 		(when entries
 		  (remhash (caar entries) wttrin--cache)
 		  (setq entries (cdr entries)))))))
@@ -491,8 +504,8 @@ Force-refresh cache and update tooltip without opening buffer."
              wttrin-mode-line-favorite-location
              wttrin-mode-line-refresh-interval))
   (when wttrin-mode-line-favorite-location
-    ;; Delay initial fetch by 3 seconds to allow network to initialize during startup
-    (run-at-time 3 nil #'wttrin--mode-line-fetch-weather)
+    ;; Delay initial fetch to allow network to initialize during startup
+    (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
     ;; Set up refresh timer (starts after the interval from now)
     (when wttrin--mode-line-timer
       (cancel-timer wttrin--mode-line-timer))
@@ -501,7 +514,8 @@ Force-refresh cache and update tooltip without opening buffer."
                       wttrin-mode-line-refresh-interval
                       #'wttrin--mode-line-fetch-weather))
     (when (featurep 'wttrin-debug)
-      (message "wttrin mode-line: Initial fetch scheduled in 3 seconds, then every %s seconds"
+      (message "wttrin mode-line: Initial fetch scheduled in %s seconds, then every %s seconds"
+               wttrin-mode-line-startup-delay
                wttrin-mode-line-refresh-interval))))
 
 (defun wttrin--mode-line-stop ()
