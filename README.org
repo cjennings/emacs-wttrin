@@ -68,10 +68,8 @@ Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-co
 If you're developing wttrin or using a local clone:
 
 #+begin_src emacs-lisp
-  ;; Point to your local wttrin directory
-  (add-to-list 'load-path "/path/to/emacs-wttrin")
-
   (use-package wttrin
+    :load-path "/path/to/emacs-wttrin"
     :defer t
     :bind ("C-c w" . wttrin)
     :custom
