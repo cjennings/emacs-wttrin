@@ -62,10 +62,10 @@ If you typically use Quelpa to install from the bleeding edge, here's what to pu
 Wttrin is pulled to MELPA repositories regularly, so using Quelpa for Wttrin may provide no advantage over use-package. Regardless, Wttrin's main branch should always be stable, so you'll be fine.
 
 *** Local Development / Manual Install
-Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. For local development or manual installations, you need to ensure xterm-color loads properly.
+Wttrin has a dependency on [[https://github.com/atomontage/xterm-color][xterm-color]] to colorize the weather display buffer. When installing from MELPA, xterm-color is automatically installed. For local development or manual installations, ensure xterm-color is available.
 
 **** Using use-package (Recommended for Development)
-If you're developing wttrin or using a local clone, use this pattern to ensure xterm-color loads before wttrin:
+If you're developing wttrin or using a local clone:
 
 #+begin_src emacs-lisp
   ;; Point to your local wttrin directory
@@ -73,39 +73,33 @@ If you're developing wttrin or using a local clone, use this pattern to ensure x
 
   (use-package wttrin
     :defer t
-    :preface
-    ;; Load xterm-color dependency BEFORE wttrin loads
-    ;; The :demand t ensures xterm-color is loaded immediately
-    (use-package xterm-color
-      :demand t)
     :bind ("C-c w" . wttrin)
     :custom
     (wttrin-default-locations '("Your City" "Another City")))
 #+end_src
 
-*Important:* The xterm-color package must be in your `:preface` section with `:demand t` to load before wttrin initializes. This is the recommended pattern for local development.
+*Note:* xterm-color loads automatically when needed. No special `:preface` or `:after` configuration required.
 
 **** Without use-package
-If you prefer not to use use-package, manually install both packages:
+If you prefer not to use use-package:
 
-1 - Clone or download both repositories:
+1 - Ensure xterm-color is installed (it will auto-install from MELPA if available via package.el)
+
+2 - Clone the wttrin repository:
 
 #+begin_src sh
-  git clone https://github.com/atomontage/xterm-color.git
   git clone https://github.com/cjennings/emacs-wttrin.git
 #+end_src
 
-2 - Add to your Emacs init file:
+3 - Add to your Emacs init file:
 
 #+begin_src elisp
-  (add-to-list 'load-path "/path/to/cloned/repo/emacs-wttrin")
-  (add-to-list 'load-path "/path/to/cloned/repo/xterm-color")
-  (require 'xterm-color)  ;; Must load BEFORE wttrin
+  (add-to-list 'load-path "/path/to/emacs-wttrin")
   (require 'wttrin)
   (define-key global-map (kbd "C-c w") 'wttrin)
 #+end_src
 
-3 - Select those five statements and run M-x eval-region ⏎ to load the package and set the keybinding.
+4 - Evaluate the code with M-x eval-region ⏎ to load the package and set the keybinding.
 
 ** Usage
 Simply use the keybinding you assigned, or run `M-x wttrin` to display the weather. A list of locations will display.
@@ -267,8 +261,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
   (use-package wttrin
     :ensure t
     :preface
-    ;; Load dependencies and set debug BEFORE wttrin loads
-    (use-package xterm-color :demand t)
+    ;; Set debug BEFORE wttrin loads
     (setq wttrin-debug t)
     :custom
     (wttrin-mode-line-favorite-location "Your City"))
@@ -300,8 +293,8 @@ When working correctly, the debug log looks like:
 #+end_example
 
 *** Common Issues
-- *xterm-color missing*: Ensure xterm-color is installed (`M-x package-install RET xterm-color`)
-- *Debug not working*: Remember to set `wttrin-debug t` *before* loading wttrin
+- *xterm-color missing*: Ensure xterm-color is installed (`M-x package-install RET xterm-color`). It loads automatically when wttrin displays weather.
+- *Debug not working*: Remember to set `wttrin-debug t` *before* loading wttrin (use `:preface` in use-package)
 - *Mode-line not showing*: Check `M-x wttrin-debug-show-log` to see if fetch succeeded
 - *No network access*: Debug log will show "Network error" messages
 
