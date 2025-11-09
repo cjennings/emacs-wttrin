@@ -33,9 +33,9 @@ If we got here, the package loaded successfully via (require 'wttrin)."
 ;;; Dependency Tests
 
 (ert-deftest test-wttrin-smoke-xterm-color-available ()
-  "Test that xterm-color dependency is available.
+  "Test that xterm-color dependency can be loaded when needed.
 This is a REQUIRED dependency - wttrin cannot function without it."
-  (should (featurep 'xterm-color)))
+  (should (require 'xterm-color nil t)))
 
 (ert-deftest test-wttrin-smoke-url-available ()
   "Test that url library is available (built-in)."

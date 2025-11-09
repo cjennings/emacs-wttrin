@@ -35,7 +35,9 @@
 
 (require 'face-remap)
 (require 'url)
-(require 'xterm-color) ;; https://github.com/atomontage/xterm-color
+
+;; Declare xterm-color functions (loaded on-demand)
+(declare-function xterm-color-filter "xterm-color" (string))
 
 ;; Declare functions from wttrin-debug.el (loaded conditionally)
 (declare-function wttrin--debug-mode-line-info "wttrin-debug")
@@ -314,6 +316,7 @@ Return t if valid, nil if missing or contains errors."
 (defun wttrin--process-weather-content (raw-string)
   "Process RAW-STRING: apply ANSI filtering and remove verbose lines.
 Returns processed string ready for display."
+  (require 'xterm-color)
   (let ((processed (xterm-color-filter raw-string)))
     ;; Remove verbose Location: coordinate line
     (with-temp-buffer
@@ -347,6 +350,7 @@ Returns processed string ready for display."
       (let ((inhibit-read-only t))
         (erase-buffer)
         ;; Initialize xterm-color state AFTER wttrin-mode to prevent it being wiped
+        (require 'xterm-color)
         (setq-local xterm-color--state :char)
         (insert (wttrin--process-weather-content raw-string))
         (wttrin--add-buffer-instructions)
