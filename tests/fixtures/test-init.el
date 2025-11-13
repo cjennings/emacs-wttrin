@@ -8,7 +8,7 @@
 ;; Configure wttrin
 (setq wttrin-default-locations '("Berkeley, CA" "New Orleans, LA"))
 (setq wttrin-unit-system "m")  ; Metric
-(setq wttrin-mode-line-favorite-location "Berkeley, CA")
+(setq wttrin-favorite-location "Berkeley, CA")
 (setq wttrin-mode-line-startup-delay 0)  ; No delay for tests
 (setq wttrin-mode-line-refresh-interval 3600)  ; 1 hour
 

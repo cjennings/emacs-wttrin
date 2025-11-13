@@ -43,7 +43,7 @@
   ;; Clear cache
   (wttrin-clear-cache)
   ;; Set test configuration
-  (setq wttrin-mode-line-favorite-location "Berkeley, CA")
+  (setq wttrin-favorite-location "Berkeley, CA")
   (setq wttrin-mode-line-startup-delay 1)  ; Minimum valid value
   (setq wttrin-unit-system "m"))
 

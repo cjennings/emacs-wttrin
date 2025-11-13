@@ -120,7 +120,7 @@ This reproduces the bug where mode-line click shows white text."
       (let* ((location "Paris")
              (cache-key (wttrin--make-cache-key location))
              (now 1000.0)
-             (wttrin-mode-line-favorite-location location))
+             (wttrin-favorite-location location))
 
         ;; Mock the async fetch to return ANSI-coded data
         (cl-letf (((symbol-function 'float-time)
@@ -259,7 +259,7 @@ This is the exact user workflow that exposes the bug."
   (unwind-protect
       (let* ((location "Tokyo")
              (now 1000.0)
-             (wttrin-mode-line-favorite-location location)
+             (wttrin-favorite-location location)
              (mode-line-fetch-count 0)
              (main-fetch-count 0))
 

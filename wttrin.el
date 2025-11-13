@@ -104,10 +104,11 @@ When cache reaches `wttrin-cache-max-entries', remove the oldest 20%
 to avoid frequent cleanup cycles.  This value (0.20) means remove 1/5
 of entries, providing a reasonable buffer before the next cleanup.")
 
-(defcustom wttrin-mode-line-favorite-location nil
-  "Favorite location to display weather for in the mode-line.
-When nil, mode-line weather display is disabled.
-Set to a location string (e.g., \"New Orleans, LA\") to enable.
+(defcustom wttrin-favorite-location nil
+  "Favorite location to display weather for.
+When nil, favorite location features are disabled.
+Set to a location string (e.g., \"New Orleans, LA\") to enable mode-line
+weather display and other location-based features.
 The weather icon and tooltip will update automatically in the background."
   :group 'wttrin
   :type '(choice (const :tag "Disabled" nil)
@@ -144,7 +145,7 @@ Set to nil to use default font (may render as monochrome)."
 
 (defcustom wttrin-mode-line-auto-enable nil
   "If non-nil, automatically enable mode-line weather display when loading wttrin.
-When enabled, weather for `wttrin-mode-line-favorite-location' will appear
+When enabled, weather for `wttrin-favorite-location' will appear
 in the mode-line automatically.  You can also manually toggle the mode-line
 display with `wttrin-mode-line-mode'."
   :group 'wttrin
@@ -479,9 +480,9 @@ This creates headroom to avoid frequent cleanups."
   "Fetch weather for favorite location and update mode-line display.
 Uses wttr.in custom format for concise weather with emoji."
   (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-mode-line-favorite-location))
-  (when wttrin-mode-line-favorite-location
-    (let* ((location wttrin-mode-line-favorite-location)
+    (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location))
+  (when wttrin-favorite-location
+    (let* ((location wttrin-favorite-location)
            ;; Custom format: location + emoji + temp + conditions
            ;; %l=location, %c=weather emoji, %t=temp, %C=conditions
            ;; Note: unit system must come BEFORE format in query string
@@ -533,7 +534,7 @@ e.g., \"Paris: ☀️ +61°F Clear\"."
                       'help-echo (lambda (_window _object _pos)
                                    (or wttrin--mode-line-tooltip-data
                                        (format "Weather for %s\nClick to refresh"
-                                               wttrin-mode-line-favorite-location)))
+                                               wttrin-favorite-location)))
                       'mouse-face 'mode-line-highlight
                       'local-map wttrin--mode-line-map)))
   (force-mode-line-update t)
@@ -546,14 +547,14 @@ e.g., \"Paris: ☀️ +61°F Clear\"."
   "Handle left-click on mode-line weather widget.
 Check cache, refresh if needed, then open weather buffer."
   (interactive)
-  (when wttrin-mode-line-favorite-location
-    (wttrin wttrin-mode-line-favorite-location)))
+  (when wttrin-favorite-location
+    (wttrin wttrin-favorite-location)))
 
 (defun wttrin-mode-line-force-refresh ()
   "Handle right-click on mode-line weather widget.
 Force-refresh cache and update tooltip without opening buffer."
   (interactive)
-  (when wttrin-mode-line-favorite-location
+  (when wttrin-favorite-location
     (let ((wttrin--force-refresh t))
       (wttrin--mode-line-fetch-weather))))
 
@@ -561,9 +562,9 @@ Force-refresh cache and update tooltip without opening buffer."
   "Start mode-line weather display and refresh timer."
   (when (featurep 'wttrin-debug)
     (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
-                       wttrin-mode-line-favorite-location
+                       wttrin-favorite-location
                        wttrin-mode-line-refresh-interval))
-  (when wttrin-mode-line-favorite-location
+  (when wttrin-favorite-location
     ;; Delay initial fetch to allow network to initialize during startup
     (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
     ;; Set up refresh timer (starts after the interval from now)
@@ -592,7 +593,7 @@ Force-refresh cache and update tooltip without opening buffer."
 ;;;###autoload
 (define-minor-mode wttrin-mode-line-mode
   "Toggle weather display in mode-line.
-When enabled, shows weather for `wttrin-mode-line-favorite-location'."
+When enabled, shows weather for `wttrin-favorite-location'."
   :global t
   :lighter (:eval wttrin-mode-line-string)
   (if wttrin-mode-line-mode

@@ -64,7 +64,7 @@
   "Test that mode-line display uses wttrin--mode-line-map after refactoring.
 This test verifies the refactoring eliminated inline keymap construction."
   ;; Set up minimal mode-line state
-  (let ((wttrin-mode-line-favorite-location "Test, CA")
+  (let ((wttrin-favorite-location "Test, CA")
         (wttrin--mode-line-tooltip-data "Test weather"))
     ;; Update the mode-line display
     (wttrin--mode-line-update-display "☀️")

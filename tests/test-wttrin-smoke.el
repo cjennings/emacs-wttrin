@@ -71,7 +71,7 @@ This is a REQUIRED dependency - wttrin cannot function without it."
   (should (boundp 'wttrin-unit-system))
   (should (boundp 'wttrin-cache-ttl))
   (should (boundp 'wttrin-cache-max-entries))
-  (should (boundp 'wttrin-mode-line-favorite-location))
+  (should (boundp 'wttrin-favorite-location))
   (should (boundp 'wttrin-mode-line-refresh-interval))
   (should (boundp 'wttrin-mode-line-startup-delay)))
 

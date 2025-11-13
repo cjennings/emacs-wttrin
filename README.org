@@ -188,7 +188,7 @@ To enable the mode-line weather display, set your favorite location and enable a
   (use-package wttrin
     :ensure t
     :custom
-    (wttrin-mode-line-favorite-location "Berkeley, CA")
+    (wttrin-favorite-location "Berkeley, CA")
     (wttrin-mode-line-auto-enable t))
 #+end_src
 
@@ -211,7 +211,7 @@ You can customize several aspects of the mode-line weather display:
 
 #+begin_src emacs-lisp
   ;; Set your favorite location (required for mode-line display)
-  (setq wttrin-mode-line-favorite-location "New Orleans, LA")
+  (setq wttrin-favorite-location "New Orleans, LA")
 
   ;; Auto-enable mode-line weather on startup
   (setq wttrin-mode-line-auto-enable t)
@@ -242,7 +242,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
     ;; Set debug BEFORE wttrin loads
     (setq wttrin-debug t)
     :custom
-    (wttrin-mode-line-favorite-location "Your City"))
+    (wttrin-favorite-location "Your City"))
 #+end_src
 
 *❌ This will NOT work* (debug set too late):
@@ -251,7 +251,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
     :ensure t
     :custom
     (wttrin-debug t)  ;; TOO LATE - wttrin already loaded!
-    (wttrin-mode-line-favorite-location "Your City"))
+    (wttrin-favorite-location "Your City"))
 #+end_src
 
 **** For manual/development installations:
@@ -262,7 +262,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
     ;; Set debug BEFORE wttrin loads
     (setq wttrin-debug t)
     :custom
-    (wttrin-mode-line-favorite-location "Your City"))
+    (wttrin-favorite-location "Your City"))
 #+end_src
 
 *** Viewing Debug Output
