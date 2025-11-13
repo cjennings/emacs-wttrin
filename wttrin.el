@@ -599,7 +599,13 @@ When enabled, shows weather for `wttrin-mode-line-favorite-location'."
       (progn
         (when (featurep 'wttrin-debug)
           (wttrin--debug-log "wttrin mode-line: Mode enabled"))
-        (wttrin--mode-line-start)
+        ;; Delay network activity until Emacs is fully initialized
+        (if (and (not after-init-time) (not noninteractive))
+            (progn
+              (when (featurep 'wttrin-debug)
+                (wttrin--debug-log "wttrin mode-line: Deferring start until after-init-hook"))
+              (add-hook 'after-init-hook #'wttrin--mode-line-start))
+          (wttrin--mode-line-start))
         ;; Add modeline string to global-mode-string for custom modelines
         (if global-mode-string
             (add-to-list 'global-mode-string 'wttrin-mode-line-string 'append)
