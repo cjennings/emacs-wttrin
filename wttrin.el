@@ -213,6 +213,53 @@ This is a pure function with no side effects, suitable for testing."
           (wttrin-additional-url-params)
           "A"))
 
+(defun wttrin--extract-response-body ()
+  "Extract and decode HTTP response body from current buffer.
+Skips headers and returns UTF-8 decoded body.
+Returns nil on error. Kills buffer when done."
+  (condition-case err
+      (unwind-protect
+          (progn
+            (goto-char (point-min))
+            (re-search-forward "\r?\n\r?\n" nil t)
+            (let ((body (decode-coding-string
+                         (buffer-substring-no-properties (point) (point-max))
+                         'utf-8)))
+              (when (featurep 'wttrin-debug)
+                (wttrin--debug-log "wttrin--extract-response-body: Successfully fetched %d bytes"
+                                   (length body)))
+              body))
+        (ignore-errors (kill-buffer (current-buffer))))
+    (error
+     (when (featurep 'wttrin-debug)
+       (wttrin--debug-log "wttrin--extract-response-body: Error - %s"
+                          (error-message-string err)))
+     (ignore-errors (kill-buffer (current-buffer)))
+     nil)))
+
+(defun wttrin--handle-fetch-callback (status callback)
+  "Handle url-retrieve callback STATUS and invoke CALLBACK with result.
+Extracts response body or handles errors, then calls CALLBACK with data or nil."
+  (when (featurep 'wttrin-debug)
+    (wttrin--debug-log "wttrin--handle-fetch-callback: Invoked with status = %S" status))
+  (let ((data nil))
+    (if (plist-get status :error)
+        (when (featurep 'wttrin-debug)
+          (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
+                             (cdr (plist-get status :error))))
+      (setq data (wttrin--extract-response-body)))
+    (condition-case err
+        (progn
+          (when (featurep 'wttrin-debug)
+            (wttrin--debug-log "wttrin--handle-fetch-callback: Calling user callback with %s"
+                               (if data (format "%d bytes" (length data)) "nil")))
+          (funcall callback data))
+      (error
+       (when (featurep 'wttrin-debug)
+         (wttrin--debug-log "wttrin--handle-fetch-callback: Error in user callback - %s"
+                            (error-message-string err)))
+       (message "wttrin: Error in callback - %s" (error-message-string err))))))
+
 (defun wttrin--fetch-url (url callback)
   "Asynchronously fetch URL and call CALLBACK with decoded response.
 CALLBACK is called with the weather data string when ready, or nil on error.
@@ -221,35 +268,9 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
     (wttrin--debug-log "wttrin--fetch-url: Starting fetch for URL: %s" url))
   (let ((url-request-extra-headers (list wttrin-default-languages))
         (url-user-agent "curl"))
-    (url-retrieve
-     url
-     (lambda (status)
-       (let ((data nil))
-         (condition-case err
-             (if (plist-get status :error)
-                 (progn
-                   (when (featurep 'wttrin-debug)
-                     (wttrin--debug-log "wttrin--fetch-url: Network error - %s"
-                                        (cdr (plist-get status :error))))
-                   (setq data nil))
-               (unwind-protect
-                   (progn
-                     ;; Skip HTTP headers
-                     (goto-char (point-min))
-                     (re-search-forward "\r?\n\r?\n" nil t)
-                     (setq data (decode-coding-string
-                                 (buffer-substring-no-properties (point) (point-max))
-                                 'utf-8))
-                     (when (featurep 'wttrin-debug)
-                       (wttrin--debug-log "wttrin--fetch-url: Successfully fetched %d bytes"
-                                          (length data))))
-                 (kill-buffer (current-buffer))))
-           (error
-            (when (featurep 'wttrin-debug)
-              (wttrin--debug-log "wttrin--fetch-url: Error processing response - %s"
-                                 (error-message-string err)))
-            (setq data nil)))
-         (funcall callback data))))))
+    (url-retrieve url
+                  (lambda (status)
+                    (wttrin--handle-fetch-callback status callback)))))
 
 (defun wttrin-fetch-raw-string (query callback)
   "Asynchronously fetch weather information for QUERY.

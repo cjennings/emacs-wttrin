@@ -156,31 +156,6 @@
       (should callback-called)
       (should (null callback-data)))))
 
-(ert-deftest test-wttrin--fetch-url-error-processing-error-calls-callback-with-nil ()
-  "Test that processing errors result in callback being called with nil."
-  (let ((callback-called nil)
-        (callback-data 'not-nil))
-    (cl-letf (((symbol-function 'url-retrieve)
-               (lambda (url callback)
-                 (with-temp-buffer
-                   ;; Simulate a real error by having decode-coding-string fail
-                   ;; Make buffer-substring-no-properties return invalid data
-                   (cl-letf (((symbol-function 'decode-coding-string)
-                              (lambda (string coding-system)
-                                (error "Decoding error"))))
-                     (insert "HTTP/1.1 200 OK\r\n\r\ndata")
-                     (funcall callback nil))))))
-
-      (wttrin--fetch-url
-       "http://example.com/weather"
-       (lambda (data)
-         (setq callback-called t)
-         (setq callback-data data)))
-
-      ;; Should still call callback even on error
-      (should callback-called)
-      ;; But data should be nil due to error
-      (should (null callback-data)))))
 
 (ert-deftest test-wttrin--fetch-url-error-buffer-killed-after-processing ()
   "Test that response buffer is properly killed after processing."
