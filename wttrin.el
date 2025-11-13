@@ -216,7 +216,7 @@ This is a pure function with no side effects, suitable for testing."
 (defun wttrin--extract-response-body ()
   "Extract and decode HTTP response body from current buffer.
 Skips headers and returns UTF-8 decoded body.
-Returns nil on error. Kills buffer when done."
+Returns nil on error.  Kills buffer when done."
   (condition-case err
       (unwind-protect
           (progn
@@ -238,7 +238,7 @@ Returns nil on error. Kills buffer when done."
      nil)))
 
 (defun wttrin--handle-fetch-callback (status callback)
-  "Handle url-retrieve callback STATUS and invoke CALLBACK with result.
+  "Handle `url-retrieve' callback STATUS and invoke CALLBACK with result.
 Extracts response body or handles errors, then calls CALLBACK with data or nil."
   (when (featurep 'wttrin-debug)
     (wttrin--debug-log "wttrin--handle-fetch-callback: Invoked with status = %S" status))
