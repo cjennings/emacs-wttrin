@@ -10,6 +10,17 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin-additional-url-params-setup ()
+  "Setup for additional-url-params tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin-additional-url-params-teardown ()
+  "Teardown for additional-url-params tests."
+  (testutil-wttrin-teardown))
 
 ;;; Normal Cases
 

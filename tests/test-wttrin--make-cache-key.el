@@ -10,6 +10,17 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin--make-cache-key-setup ()
+  "Setup for make-cache-key tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin--make-cache-key-teardown ()
+  "Teardown for make-cache-key tests."
+  (testutil-wttrin-teardown))
 
 ;;; Normal Cases
 

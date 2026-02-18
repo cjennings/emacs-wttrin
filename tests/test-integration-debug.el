@@ -1,4 +1,4 @@
-;;; test-wttrin-integration-with-debug.el --- Integration test with debug enabled -*- lexical-binding: t; -*-
+;;; test-integration-debug.el --- Integration test with debug enabled -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024 Craig Jennings
 
@@ -13,25 +13,16 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
 
 ;; Sample weather data from wttr.in custom format API
 (defconst test-wttrin-sample-weather-data
   "Berkeley, CA: ☀️ +62°F Clear"
   "Sample weather data in wttr.in custom format.")
 
-(defconst test-wttrin-sample-full-weather
-  "Weather for Berkeley, CA
-
-     \\    /      Clear
-      .-.       62 °F
-   ― (   ) ―    ↑ 5 mph
-      `-'       10 mi
-     /    \\     0.0 in"
-  "Sample full weather display data.")
-
 ;;; Setup and Teardown
 
-(defun test-wttrin-setup ()
+(defun test-integration-debug-setup ()
   "Set up test environment with debug enabled."
   ;; Enable debug mode
   (setq wttrin-debug t)
@@ -47,7 +38,7 @@
   (setq wttrin-mode-line-startup-delay 1)  ; Minimum valid value
   (setq wttrin-unit-system "m"))
 
-(defun test-wttrin-teardown ()
+(defun test-integration-debug-teardown ()
   "Clean up after tests."
   (when (boundp 'wttrin-mode-line-mode)
     (wttrin-mode-line-mode -1))
@@ -61,7 +52,7 @@
 (defvar test-wttrin--original-fetch-url nil
   "Original wttrin--fetch-url function for restoration after test.")
 
-(defun test-wttrin-mock-fetch (url callback)
+(defun test-integration-debug-mock-fetch (url callback)
   "Mock version of wttrin--fetch-url that returns fake weather data.
 URL is ignored. CALLBACK is called with mock data."
   (when (featurep 'wttrin-debug)
@@ -71,22 +62,34 @@ URL is ignored. CALLBACK is called with mock data."
     (wttrin--debug-log "MOCK-FETCH: Calling callback with mock data"))
   (funcall callback test-wttrin-sample-weather-data))
 
-(defmacro with-mocked-fetch (&rest body)
+(defmacro test-integration-debug-with-mocked-fetch (&rest body)
   "Execute BODY with wttrin--fetch-url mocked to return test data."
   `(let ((test-wttrin--original-fetch-url (symbol-function 'wttrin--fetch-url)))
      (unwind-protect
          (progn
-           (fset 'wttrin--fetch-url #'test-wttrin-mock-fetch)
+           (fset 'wttrin--fetch-url #'test-integration-debug-mock-fetch)
            ,@body)
        (fset 'wttrin--fetch-url test-wttrin--original-fetch-url))))
 
 ;;; Integration Tests
 
-(ert-deftest test-wttrin-debug-integration-mode-line-fetch-and-display ()
-  "Integration test: Fetch weather and verify mode-line display with debug logging."
-  (test-wttrin-setup)
+(ert-deftest test-integration-debug-mode-line-fetch-and-display-logs-events ()
+  "Test the mode-line weather fetch and display pipeline with debug logging.
+
+Context: The mode-line weather feature fetches weather data asynchronously
+and updates the mode-line string with an emoji icon and tooltip.
+
+Components integrated:
+- `wttrin--mode-line-fetch-weather' (async fetch trigger)
+- `wttrin--mode-line-update-display' (mode-line string formatting)
+- `wttrin--debug-log' (debug event capture)
+
+Validates that a successful fetch sets the mode-line string with an emoji,
+stores tooltip data, and logs fetch-start, data-received, display-update,
+and emoji-extraction events to the debug log."
+  (test-integration-debug-setup)
   (unwind-protect
-      (with-mocked-fetch
+      (test-integration-debug-with-mocked-fetch
        ;; Clear debug log
        (wttrin-debug-clear-log)
 
@@ -119,11 +122,23 @@ URL is ignored. CALLBACK is called with mock data."
          ;; Should have logged emoji extraction
          (should (seq-some (lambda (msg) (string-match-p "Extracted emoji" msg))
                           log-messages))))
-    (test-wttrin-teardown)))
+    (test-integration-debug-teardown)))
 
-(ert-deftest test-wttrin-debug-integration-full-weather-query ()
-  "Integration test: Query full weather and verify debug logging."
-  (test-wttrin-setup)
+(ert-deftest test-integration-debug-full-weather-query-creates-buffer ()
+  "Test the full weather query pipeline from fetch through buffer display.
+
+Context: When a user calls `wttrin-query', the system fetches weather data,
+processes it through ANSI filtering, and displays it in a dedicated buffer.
+
+Components integrated:
+- `wttrin-query' (user-facing entry point)
+- `wttrin--fetch-url' (HTTP fetch, mocked)
+- `wttrin--display-weather' (buffer creation and content rendering)
+- `wttrin--debug-log' (debug event capture)
+
+Validates that a full weather query creates the *wttr.in* buffer and
+that the debug log records the mock fetch call."
+  (test-integration-debug-setup)
   (unwind-protect
       (progn
         ;; Clear debug log
@@ -135,7 +150,7 @@ URL is ignored. CALLBACK is called with mock data."
                      (when (featurep 'wttrin-debug)
                        (wttrin--debug-log "MOCK-FETCH: Full weather query for URL: %s" url))
                      ;; Call directly instead of using run-at-time (doesn't work in batch)
-                     (funcall callback test-wttrin-sample-full-weather))))
+                     (funcall callback testutil-wttrin-sample-full-weather))))
 
           ;; Start the query (now synchronous with mocked fetch)
           (wttrin-query "Berkeley, CA")
@@ -151,13 +166,24 @@ URL is ignored. CALLBACK is called with mock data."
     ;; Cleanup
     (when (get-buffer "*wttr.in*")
       (kill-buffer "*wttr.in*"))
-    (test-wttrin-teardown)))
+    (test-integration-debug-teardown)))
 
-(ert-deftest test-wttrin-debug-integration-mode-line-mode-toggle ()
-  "Integration test: Toggle mode-line mode and verify debug logging."
-  (test-wttrin-setup)
+(ert-deftest test-integration-debug-mode-line-mode-toggle-updates-global-string ()
+  "Test enabling and disabling wttrin-mode-line-mode updates global state.
+
+Context: `wttrin-mode-line-mode' is a global minor mode that adds a weather
+widget to the Emacs mode-line. Toggling it should cleanly add/remove state.
+
+Components integrated:
+- `wttrin-mode-line-mode' (global minor mode toggle)
+- `wttrin--mode-line-fetch-weather' (initial data fetch)
+- `global-mode-string' (Emacs mode-line display list)
+
+Validates that enabling the mode sets `wttrin-mode-line-string' and adds it
+to `global-mode-string', and that disabling clears both."
+  (test-integration-debug-setup)
   (unwind-protect
-      (with-mocked-fetch
+      (test-integration-debug-with-mocked-fetch
        ;; Clear debug log
        (wttrin-debug-clear-log)
 
@@ -184,11 +210,22 @@ URL is ignored. CALLBACK is called with mock data."
 
        ;; Verify removed from global-mode-string
        (should-not (member 'wttrin-mode-line-string global-mode-string)))
-    (test-wttrin-teardown)))
+    (test-integration-debug-teardown)))
 
-(ert-deftest test-wttrin-debug-integration-error-handling ()
-  "Integration test: Verify debug logging captures errors correctly."
-  (test-wttrin-setup)
+(ert-deftest test-integration-debug-error-handling-logs-no-data-received ()
+  "Test that network errors are handled gracefully and logged to debug.
+
+Context: When wttr.in is unreachable or returns an error, the fetch callback
+receives nil. The mode-line handler should not crash and should log the error.
+
+Components integrated:
+- `wttrin--mode-line-fetch-weather' (fetch trigger)
+- `wttrin--fetch-url' (HTTP fetch, mocked to return nil)
+- `wttrin--debug-log' (error event capture)
+
+Validates that a nil fetch response does not crash and that a
+\"No data received\" message is recorded in the debug log."
+  (test-integration-debug-setup)
   (unwind-protect
       (progn
         ;; Clear debug log
@@ -211,11 +248,22 @@ URL is ignored. CALLBACK is called with mock data."
           (let ((log-messages (mapcar #'cdr wttrin--debug-log)))
             (should (seq-some (lambda (msg) (string-match-p "No data received" msg))
                              log-messages)))))
-    (test-wttrin-teardown)))
+    (test-integration-debug-teardown)))
 
-(ert-deftest test-wttrin-debug-integration-log-inspection ()
-  "Integration test: Verify debug log can be inspected programmatically."
-  (test-wttrin-setup)
+(ert-deftest test-integration-debug-log-inspection-stores-timestamped-entries ()
+  "Test that the debug log stores structured entries that can be inspected.
+
+Context: The debug log is an alist of (timestamp . message) pairs used for
+diagnosing issues. It should support programmatic inspection and clearing.
+
+Components integrated:
+- `wttrin--debug-log' (log writing)
+- `wttrin-debug-clear-log' (log clearing)
+- `wttrin--debug-log' variable (log storage as alist)
+
+Validates that log entries are (string . string) cons cells, that formatted
+messages are stored correctly, and that clearing empties the log."
+  (test-integration-debug-setup)
   (unwind-protect
       (progn
         ;; Clear and add some test log entries
@@ -238,7 +286,7 @@ URL is ignored. CALLBACK is called with mock data."
         ;; Clear log
         (wttrin-debug-clear-log)
         (should (= 0 (length wttrin--debug-log))))
-    (test-wttrin-teardown)))
+    (test-integration-debug-teardown)))
 
-(provide 'test-wttrin-integration-with-debug)
-;;; test-wttrin-integration-with-debug.el ends here
+(provide 'test-integration-debug)
+;;; test-integration-debug.el ends here

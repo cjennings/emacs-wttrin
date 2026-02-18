@@ -23,7 +23,7 @@ PROJECT_ROOT = .
 
 # Test files
 SMOKE_TESTS = $(wildcard $(TEST_DIR)/test-*-smoke.el)
-INTEGRATION_TESTS = $(wildcard $(TEST_DIR)/test-*-integration-*.el)
+INTEGRATION_TESTS = $(sort $(wildcard $(TEST_DIR)/test-*-integration-*.el) $(wildcard $(TEST_DIR)/test-integration-*.el))
 UNIT_TESTS = $(filter-out $(INTEGRATION_TESTS) $(SMOKE_TESTS), $(wildcard $(TEST_DIR)/test-*.el))
 ALL_TESTS = $(SMOKE_TESTS) $(UNIT_TESTS) $(INTEGRATION_TESTS)
 

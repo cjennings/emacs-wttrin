@@ -10,10 +10,21 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin--extract-response-body-setup ()
+  "Setup for extract-response-body tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin--extract-response-body-teardown ()
+  "Teardown for extract-response-body tests."
+  (testutil-wttrin-teardown))
 
 ;;; Normal Cases
 
-(ert-deftest test-wttrin--extract-response-body-normal-simple-response ()
+(ert-deftest test-wttrin--extract-response-body-normal-simple-response-returns-body ()
   "Test extracting body from simple HTTP response."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n")
@@ -23,7 +34,7 @@
     (let ((result (wttrin--extract-response-body)))
       (should (string= "Weather data" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-normal-utf8-content ()
+(ert-deftest test-wttrin--extract-response-body-normal-utf8-content-preserves-encoding ()
   "Test extracting UTF-8 encoded body with emoji and international characters."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n\r\n")
@@ -33,7 +44,7 @@
       (should (string-match-p "中文" result))
       (should (string-match-p "مرحبا" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-normal-multiline-body ()
+(ert-deftest test-wttrin--extract-response-body-normal-multiline-body-returns-all-lines ()
   "Test extracting multi-line response body."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n\r\n")
@@ -47,7 +58,7 @@
 
 ;;; Boundary Cases
 
-(ert-deftest test-wttrin--extract-response-body-boundary-empty-body ()
+(ert-deftest test-wttrin--extract-response-body-boundary-empty-body-returns-empty-string ()
   "Test extracting empty response body."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n\r\n")
@@ -55,7 +66,7 @@
     (let ((result (wttrin--extract-response-body)))
       (should (string= "" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-large-body ()
+(ert-deftest test-wttrin--extract-response-body-boundary-large-body-returns-full-content ()
   "Test extracting large response body."
   (let ((large-content (make-string 50000 ?x)))
     (with-temp-buffer
@@ -65,7 +76,7 @@
         (should (= 50000 (length result)))
         (should (string= large-content result))))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-unix-line-endings ()
+(ert-deftest test-wttrin--extract-response-body-boundary-unix-line-endings-returns-body ()
   "Test extracting body with Unix-style LF line endings."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\n")
@@ -75,7 +86,7 @@
     (let ((result (wttrin--extract-response-body)))
       (should (string= "Body content" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-windows-line-endings ()
+(ert-deftest test-wttrin--extract-response-body-boundary-windows-line-endings-returns-body ()
   "Test extracting body with Windows-style CRLF line endings."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n")
@@ -85,7 +96,7 @@
     (let ((result (wttrin--extract-response-body)))
       (should (string= "Body content" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-mixed-line-endings ()
+(ert-deftest test-wttrin--extract-response-body-boundary-mixed-line-endings-returns-body ()
   "Test extracting body with mixed LF/CRLF line endings in headers."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n")
@@ -96,7 +107,7 @@
     (let ((result (wttrin--extract-response-body)))
       (should (string= "Body content" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-many-headers ()
+(ert-deftest test-wttrin--extract-response-body-boundary-many-headers-strips-all-headers ()
   "Test extracting body with many response headers."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n")
@@ -109,7 +120,7 @@
       ;; Headers should not be in result
       (should-not (string-match-p "Header-" result)))))
 
-(ert-deftest test-wttrin--extract-response-body-boundary-body-looks-like-headers ()
+(ert-deftest test-wttrin--extract-response-body-boundary-body-looks-like-headers-preserves-body ()
   "Test extracting body that contains text resembling HTTP headers."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n\r\n")
@@ -121,7 +132,7 @@
 
 ;;; Error Cases
 
-(ert-deftest test-wttrin--extract-response-body-error-no-header-separator ()
+(ert-deftest test-wttrin--extract-response-body-error-no-header-separator-returns-result ()
   "Test handling of response with no header/body separator."
   (with-temp-buffer
     (insert "HTTP/1.1 200 OK\r\n")
@@ -132,7 +143,7 @@
       ;; Should return whatever comes after attempting to find separator
       (should result))))
 
-(ert-deftest test-wttrin--extract-response-body-error-empty-buffer ()
+(ert-deftest test-wttrin--extract-response-body-error-empty-buffer-returns-nil-or-empty ()
   "Test handling of completely empty buffer."
   (with-temp-buffer
     ;; Empty buffer
@@ -140,7 +151,7 @@
       ;; Should return empty string or nil without crashing
       (should (or (null result) (string= "" result))))))
 
-(ert-deftest test-wttrin--extract-response-body-error-buffer-kills-cleanly ()
+(ert-deftest test-wttrin--extract-response-body-error-buffer-kills-cleanly-after-extraction ()
   "Test that buffer is killed even when processing succeeds."
   (let ((buffers-before (buffer-list))
         result)

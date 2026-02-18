@@ -18,6 +18,17 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin-smoke-setup ()
+  "Setup for smoke tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin-smoke-teardown ()
+  "Teardown for smoke tests."
+  (testutil-wttrin-teardown))
 
 ;;; Package Loading Tests
 

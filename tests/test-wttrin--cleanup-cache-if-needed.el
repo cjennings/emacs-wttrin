@@ -120,5 +120,82 @@
         (should (= 2 (testutil-wttrin-cache-size))))
     (test-wttrin--cleanup-cache-if-needed-teardown)))
 
+(ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-one-over-max-removes-oldest ()
+  "Test cleanup when cache has just one entry over max."
+  (test-wttrin--cleanup-cache-if-needed-setup)
+  (unwind-protect
+      (testutil-wttrin-with-cache-max 5
+        ;; Add 6 entries (1 over max)
+        (dotimes (i 6)
+          (testutil-wttrin-add-to-cache (format "loc%d" i) (format "data-%d" i) (* (- 6 i) 100)))
+        (should (= 6 (testutil-wttrin-cache-size)))
+        (wttrin--cleanup-cache-if-needed)
+        ;; Should remove 20% of 6 = 1.2 = 1 entry (floor)
+        (should (= 5 (testutil-wttrin-cache-size))))
+    (test-wttrin--cleanup-cache-if-needed-teardown)))
+
+(ert-deftest test-wttrin--cleanup-cache-if-needed-normal-large-dataset-removes-20-percent ()
+  "Test that cleanup removes approximately 20% of entries with larger dataset."
+  (test-wttrin--cleanup-cache-if-needed-setup)
+  (unwind-protect
+      (testutil-wttrin-with-cache-max 10
+        ;; Add 20 entries (twice the max)
+        (dotimes (i 20)
+          (testutil-wttrin-add-to-cache (format "loc%d" i) (format "data-%d" i) (* (- 20 i) 100)))
+        (should (= 20 (testutil-wttrin-cache-size)))
+        ;; Trigger cleanup - should remove 20% of 20 = 4 entries
+        (wttrin--cleanup-cache-if-needed)
+        ;; Should have 16 entries remaining (20 - 4)
+        (should (= 16 (testutil-wttrin-cache-size))))
+    (test-wttrin--cleanup-cache-if-needed-teardown)))
+
+(ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-custom-cleanup-percentage-removes-expected ()
+  "Test that custom cleanup percentage is respected."
+  (test-wttrin--cleanup-cache-if-needed-setup)
+  (unwind-protect
+      (let ((wttrin-cache-max-entries 100)
+            (wttrin--cache-cleanup-percentage 0.30)) ; 30% cleanup
+        ;; Add 101 entries
+        (dotimes (i 101)
+          (testutil-wttrin-add-to-cache (format "loc%d" i) "data" (* (- 101 i) 10)))
+        (wttrin--cleanup-cache-if-needed)
+        ;; Should remove floor(101 * 0.30) = 30 oldest entries, leaving 71
+        (should (= 71 (testutil-wttrin-cache-size))))
+    (test-wttrin--cleanup-cache-if-needed-teardown)))
+
+(ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-small-percentage-removes-minimum ()
+  "Test that small cleanup percentage (10%) removes correct number."
+  (test-wttrin--cleanup-cache-if-needed-setup)
+  (unwind-protect
+      (let ((wttrin-cache-max-entries 10)
+            (wttrin--cache-cleanup-percentage 0.10)) ; Only 10%
+        ;; Add 11 entries
+        (dotimes (i 11)
+          (testutil-wttrin-add-to-cache (format "loc%d" i) "data" (* (- 11 i) 100)))
+        (wttrin--cleanup-cache-if-needed)
+        ;; Should remove floor(11 * 0.10) = 1 oldest entry
+        (should (= 10 (testutil-wttrin-cache-size))))
+    (test-wttrin--cleanup-cache-if-needed-teardown)))
+
+(ert-deftest test-wttrin--cleanup-cache-if-needed-normal-multiple-cleanups-work-correctly ()
+  "Test that multiple cleanup cycles work correctly."
+  (test-wttrin--cleanup-cache-if-needed-setup)
+  (unwind-protect
+      (let ((wttrin-cache-max-entries 50)
+            (wttrin--cache-cleanup-percentage 0.20))
+        ;; First batch: 51 entries
+        (dotimes (i 51)
+          (testutil-wttrin-add-to-cache (format "batch1-%d" i) "data" (* (- 51 i) 10)))
+        (wttrin--cleanup-cache-if-needed)
+        (should (= 41 (testutil-wttrin-cache-size)))
+
+        ;; Second batch: add 10 more (now 51 again)
+        (dotimes (i 10)
+          (testutil-wttrin-add-to-cache (format "batch2-%d" i) "data"))
+        (wttrin--cleanup-cache-if-needed)
+        ;; Should cleanup again: floor(51 * 0.20) = 10 removed, leaving 41
+        (should (= 41 (testutil-wttrin-cache-size))))
+    (test-wttrin--cleanup-cache-if-needed-teardown)))
+
 (provide 'test-wttrin--cleanup-cache-if-needed)
 ;;; test-wttrin--cleanup-cache-if-needed.el ends here

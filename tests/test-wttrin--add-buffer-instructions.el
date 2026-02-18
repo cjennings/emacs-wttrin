@@ -10,17 +10,28 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin--add-buffer-instructions-setup ()
+  "Setup for add-buffer-instructions tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin--add-buffer-instructions-teardown ()
+  "Teardown for add-buffer-instructions tests."
+  (testutil-wttrin-teardown))
 
 ;;; Normal Cases
 
-(ert-deftest test-wttrin--add-buffer-instructions-normal-empty-buffer ()
+(ert-deftest test-wttrin--add-buffer-instructions-normal-empty-buffer-adds-instructions ()
   "Test adding instructions to empty buffer."
   (with-temp-buffer
     (wttrin--add-buffer-instructions)
     (should (string= "\n\nPress: [a] for another location [g] to refresh [q] to quit"
                      (buffer-string)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-normal-with-existing-content ()
+(ert-deftest test-wttrin--add-buffer-instructions-normal-with-existing-content-appends-instructions ()
   "Test adding instructions to buffer with existing content."
   (with-temp-buffer
     (insert "Weather: Sunny\nTemperature: 20°C")
@@ -28,7 +39,7 @@
     (should (string= "Weather: Sunny\nTemperature: 20°C\n\nPress: [a] for another location [g] to refresh [q] to quit"
                      (buffer-string)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-normal-preserves-point ()
+(ert-deftest test-wttrin--add-buffer-instructions-normal-preserves-point-moves-to-end ()
   "Test that point is moved to end after adding instructions."
   (with-temp-buffer
     (insert "Some content")
@@ -36,7 +47,7 @@
     (wttrin--add-buffer-instructions)
     (should (= (point) (point-max)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-normal-idempotent-check ()
+(ert-deftest test-wttrin--add-buffer-instructions-normal-called-twice-adds-instructions-twice ()
   "Test that calling function twice adds instructions twice (not idempotent)."
   (with-temp-buffer
     (insert "Weather")
@@ -64,7 +75,7 @@
 
 ;;; Boundary Cases
 
-(ert-deftest test-wttrin--add-buffer-instructions-boundary-point-at-beginning ()
+(ert-deftest test-wttrin--add-buffer-instructions-boundary-point-at-beginning-appends-at-end ()
   "Test adding instructions when point is at beginning of buffer."
   (with-temp-buffer
     (insert "Weather data here")
@@ -73,7 +84,7 @@
     (should (string-suffix-p "Press: [a] for another location [g] to refresh [q] to quit"
                              (buffer-string)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-boundary-point-in-middle ()
+(ert-deftest test-wttrin--add-buffer-instructions-boundary-point-in-middle-appends-at-end ()
   "Test adding instructions when point is in middle of buffer."
   (with-temp-buffer
     (insert "Line 1\nLine 2\nLine 3")
@@ -83,7 +94,7 @@
     (should (string-suffix-p "Press: [a] for another location [g] to refresh [q] to quit"
                              (buffer-string)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-boundary-buffer-with-trailing-newlines ()
+(ert-deftest test-wttrin--add-buffer-instructions-boundary-trailing-newlines-preserves-newlines ()
   "Test adding instructions to buffer that already ends with newlines."
   (with-temp-buffer
     (insert "Weather\n\n\n")
@@ -91,7 +102,7 @@
     (should (string= "Weather\n\n\n\n\nPress: [a] for another location [g] to refresh [q] to quit"
                      (buffer-string)))))
 
-(ert-deftest test-wttrin--add-buffer-instructions-boundary-very-large-buffer ()
+(ert-deftest test-wttrin--add-buffer-instructions-boundary-very-large-buffer-appends-at-end ()
   "Test adding instructions to large buffer."
   (with-temp-buffer
     (insert (make-string 10000 ?x))
@@ -101,7 +112,7 @@
 
 ;;; Error Cases
 
-(ert-deftest test-wttrin--add-buffer-instructions-error-read-only-buffer ()
+(ert-deftest test-wttrin--add-buffer-instructions-error-read-only-buffer-signals-error ()
   "Test that function signals error when buffer is read-only."
   (with-temp-buffer
     (insert "Some content")
@@ -109,7 +120,7 @@
     (should-error (wttrin--add-buffer-instructions)
                   :type 'buffer-read-only)))
 
-(ert-deftest test-wttrin--add-buffer-instructions-error-narrowed-buffer ()
+(ert-deftest test-wttrin--add-buffer-instructions-error-narrowed-buffer-adds-at-narrowed-end ()
   "Test adding instructions to narrowed buffer adds at narrowed end."
   (with-temp-buffer
     (insert "Line 1\nLine 2\nLine 3\nLine 4")

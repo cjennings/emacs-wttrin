@@ -10,6 +10,17 @@
 
 (require 'ert)
 (require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin--fetch-url-setup ()
+  "Setup for fetch-url tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin--fetch-url-teardown ()
+  "Teardown for fetch-url tests."
+  (testutil-wttrin-teardown))
 
 ;;; Normal Cases
 

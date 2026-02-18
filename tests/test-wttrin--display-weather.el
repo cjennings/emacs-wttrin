@@ -39,14 +39,12 @@ Weather report: Paris, France
 (defun test-wttrin--display-weather-setup ()
   "Setup for display weather tests."
   (testutil-wttrin-setup)
-  ;; Kill any existing weather buffer
   (when (get-buffer "*wttr.in*")
     (kill-buffer "*wttr.in*")))
 
 (defun test-wttrin--display-weather-teardown ()
   "Teardown for display weather tests."
   (testutil-wttrin-teardown)
-  ;; Clean up weather buffer
   (when (get-buffer "*wttr.in*")
     (kill-buffer "*wttr.in*")))
 
@@ -56,7 +54,7 @@ Weather report: Paris, France
   "Test that valid weather data creates and displays buffer correctly."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "Paris, France" test-wttrin--display-weather-sample-raw-data)
 
         ;; Buffer should exist
@@ -80,7 +78,7 @@ Weather report: Paris, France
   "Test that keybindings are properly set up in weather buffer."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "London" test-wttrin--display-weather-sample-raw-data)
 
         (with-current-buffer "*wttr.in*"
@@ -95,7 +93,7 @@ Weather report: Paris, France
   "Test that help instructions are displayed at bottom of buffer."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "Tokyo" test-wttrin--display-weather-sample-raw-data)
 
         (with-current-buffer "*wttr.in*"
@@ -114,7 +112,7 @@ Weather report: Paris, France
   "Test that empty location name still creates buffer."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "" test-wttrin--display-weather-sample-raw-data)
 
         ;; Buffer should still be created
@@ -129,7 +127,7 @@ Weather report: Paris, France
   "Test that location with special characters creates buffer."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "São Paulo, BR 🌆" test-wttrin--display-weather-sample-raw-data)
 
         (should (get-buffer "*wttr.in*"))
@@ -144,15 +142,13 @@ Weather report: Paris, France
 Empty string does not match ERROR pattern, so it's processed as data."
   (test-wttrin--display-weather-setup)
   (unwind-protect
-      (progn
+      (testutil-wttrin-with-clean-weather-buffer
         (wttrin--display-weather "Paris" "")
 
         ;; Empty string is not treated as error, buffer is created
         (should (get-buffer "*wttr.in*"))
 
         (with-current-buffer "*wttr.in*"
-          ;; Buffer exists but will have minimal/broken content
-          ;; Just verify it was created and made read-only
           (should buffer-read-only)))
     (test-wttrin--display-weather-teardown)))
 
@@ -163,7 +159,6 @@ Empty string does not match ERROR pattern, so it's processed as data."
   (test-wttrin--display-weather-setup)
   (unwind-protect
       (progn
-        ;; Capture message output
         (let ((message-log-max t)
               (message-displayed nil))
           (cl-letf (((symbol-function 'message)
@@ -198,13 +193,9 @@ Empty string does not match ERROR pattern, so it's processed as data."
   (test-wttrin--display-weather-setup)
   (unwind-protect
       (progn
-        ;; Suppress message output
         (cl-letf (((symbol-function 'message) (lambda (&rest _) nil)))
           (wttrin--display-weather "InvalidCity" nil)
 
-          ;; Buffer should not be created for error case
-          ;; (or if it exists from before, it shouldn't be switched to)
-          ;; This is testing the error path doesn't create/switch to buffer
           (should-not (string-match-p "wttr.in"
                                       (buffer-name (current-buffer))))))
     (test-wttrin--display-weather-teardown)))

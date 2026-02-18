@@ -27,6 +27,25 @@
   "ERROR: Unknown location; please try ~curl wttr.in/:help"
   "Sample error response from wttr.in service.")
 
+(defconst testutil-wttrin-sample-ansi-response
+  "Weather report: Paris
+
+\x1b[38;5;226m   \\  /\x1b[0m       Partly cloudy
+\x1b[38;5;226m _ /\"\"\x1b[38;5;250m.-.\x1b[0m    \x1b[38;5;118m+13\x1b[0m(\x1b[38;5;082m12\x1b[0m) °C
+\x1b[38;5;226m   \\_\x1b[38;5;250m(   ).  \x1b[0m ↑ \x1b[38;5;190m12\x1b[0m km/h
+"
+  "Sample weather data with ANSI color codes for testing rendering.")
+
+(defconst testutil-wttrin-sample-full-weather
+  "Weather for Berkeley, CA
+
+     \\    /      Clear
+      .-.       62 °F
+   ― (   ) ―    ↑ 5 mph
+      `-'       10 mi
+     /    \\     0.0 in"
+  "Sample full weather display data for integration tests.")
+
 ;;; Cache Testing Helpers
 
 (defun testutil-wttrin-clear-cache ()
@@ -63,6 +82,32 @@
   "Execute BODY with wttrin-cache-max-entries temporarily set to MAX-ENTRIES."
   (declare (indent 1))
   `(let ((wttrin-cache-max-entries ,max-entries))
+     ,@body))
+
+;;; Buffer Management
+
+(defmacro testutil-wttrin-with-clean-weather-buffer (&rest body)
+  "Execute BODY with clean *wttr.in* buffer setup/teardown."
+  (declare (indent 0))
+  `(progn
+     (when (get-buffer "*wttr.in*")
+       (kill-buffer "*wttr.in*"))
+     (unwind-protect
+         (progn ,@body)
+       (when (get-buffer "*wttr.in*")
+         (kill-buffer "*wttr.in*")))))
+
+;;; HTTP Mock Helpers
+
+(defmacro testutil-wttrin-mock-http-response (response-body &rest body)
+  "Mock url-retrieve to return HTTP 200 with RESPONSE-BODY, execute BODY."
+  (declare (indent 1))
+  `(cl-letf (((symbol-function 'url-retrieve)
+              (lambda (url callback)
+                (with-temp-buffer
+                  (insert "HTTP/1.1 200 OK\n\n")
+                  (insert ,response-body)
+                  (funcall callback nil)))))
      ,@body))
 
 ;;; Test Setup and Teardown
