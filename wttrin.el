@@ -476,12 +476,22 @@ This creates headroom to avoid frequent cleanups."
 
 ;;; Mode-line weather display
 
+(defun wttrin--mode-line-valid-response-p (weather-string)
+  "Return non-nil if WEATHER-STRING looks like a valid mode-line response.
+Expected format: \"Location: emoji temp conditions\",
+e.g., \"Paris: ☀️ +61°F Clear\"."
+  (and (stringp weather-string)
+       (not (string-empty-p weather-string))
+       (string-match-p ":" weather-string)))
+
 (defun wttrin--mode-line-fetch-weather ()
   "Fetch weather for favorite location and update mode-line display.
 Uses wttr.in custom format for concise weather with emoji."
   (when (featurep 'wttrin-debug)
     (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location))
-  (when wttrin-favorite-location
+  (if (not wttrin-favorite-location)
+      (when (featurep 'wttrin-debug)
+        (wttrin--debug-log "mode-line-fetch: No favorite location set, skipping"))
     (let* ((location wttrin-favorite-location)
            ;; Custom format: location + emoji + temp + conditions
            ;; %l=location, %c=weather emoji, %t=temp, %C=conditions
@@ -501,7 +511,10 @@ Uses wttr.in custom format for concise weather with emoji."
              (let ((trimmed-data (string-trim data)))
                (when (featurep 'wttrin-debug)
                  (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data))
-               (wttrin--mode-line-update-display trimmed-data))
+               (if (wttrin--mode-line-valid-response-p trimmed-data)
+                   (wttrin--mode-line-update-display trimmed-data)
+                 (when (featurep 'wttrin-debug)
+                   (wttrin--debug-log "mode-line-fetch: Invalid response, keeping previous display"))))
            (when (featurep 'wttrin-debug)
              (wttrin--debug-log "mode-line-fetch: No data received (network error)"))))))))
 
@@ -532,9 +545,11 @@ e.g., \"Paris: ☀️ +61°F Clear\"."
     (setq wttrin-mode-line-string
           (propertize (concat " " emoji-with-font)
                       'help-echo (lambda (_window _object _pos)
-                                   (or wttrin--mode-line-tooltip-data
+                                   (let ((tip wttrin--mode-line-tooltip-data))
+                                     (if (and tip (not (string-empty-p tip)))
+                                         tip
                                        (format "Weather for %s\nClick to refresh"
-                                               wttrin-favorite-location)))
+                                               wttrin-favorite-location))))
                       'mouse-face 'mode-line-highlight
                       'local-map wttrin--mode-line-map)))
   (force-mode-line-update t)
