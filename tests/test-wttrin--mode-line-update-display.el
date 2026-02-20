@@ -221,5 +221,74 @@
           (should (equal wttrin--mode-line-tooltip-data "Paris: ☀️ +61°F Clear"))))
     (test-wttrin--mode-line-update-display-teardown)))
 
+;;; --------------------------------------------------------------------------
+;;; wttrin--mode-line-set-placeholder
+;;; --------------------------------------------------------------------------
+
+;;; Normal Cases
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-normal-sets-mode-line-string ()
+  "Placeholder sets wttrin-mode-line-string to non-nil."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris"))
+        (wttrin--mode-line-set-placeholder)
+        (should wttrin-mode-line-string))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-normal-contains-hourglass ()
+  "Placeholder displays hourglass emoji."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris")
+            (wttrin-mode-line-emoji-font nil))
+        (wttrin--mode-line-set-placeholder)
+        (should (string-match-p "⏳" (substring-no-properties wttrin-mode-line-string))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-normal-has-fetching-tooltip ()
+  "Placeholder tooltip mentions fetching weather."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris"))
+        (wttrin--mode-line-set-placeholder)
+        (let ((tooltip (get-text-property 0 'help-echo wttrin-mode-line-string)))
+          (should (string-match-p "Fetching" tooltip))
+          (should (string-match-p "Paris" tooltip))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-normal-has-local-map ()
+  "Placeholder has mouse interaction keymap."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris"))
+        (wttrin--mode-line-set-placeholder)
+        (should (eq (get-text-property 0 'local-map wttrin-mode-line-string)
+                    wttrin--mode-line-map)))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-normal-replaced-by-real-data ()
+  "Placeholder is replaced when real weather data arrives."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris")
+            (wttrin-mode-line-emoji-font nil))
+        (wttrin--mode-line-set-placeholder)
+        (should (string-match-p "⏳" (substring-no-properties wttrin-mode-line-string)))
+        (wttrin--mode-line-update-display "Paris: ☀️ +61°F Clear")
+        (should-not (string-match-p "⏳" (substring-no-properties wttrin-mode-line-string))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+;;; Boundary Cases
+
+(ert-deftest test-wttrin--mode-line-set-placeholder-boundary-does-not-set-tooltip-data ()
+  "Placeholder does not contaminate tooltip data variable."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-favorite-location "Paris"))
+        (wttrin--mode-line-set-placeholder)
+        (should-not wttrin--mode-line-tooltip-data))
+    (test-wttrin--mode-line-update-display-teardown)))
+
 (provide 'test-wttrin--mode-line-update-display)
 ;;; test-wttrin--mode-line-update-display.el ends here

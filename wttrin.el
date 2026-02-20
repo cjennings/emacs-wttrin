@@ -573,6 +573,21 @@ Force-refresh cache and update tooltip without opening buffer."
     (let ((wttrin--force-refresh t))
       (wttrin--mode-line-fetch-weather))))
 
+(defun wttrin--mode-line-set-placeholder ()
+  "Set a placeholder icon in the mode-line while waiting for weather data."
+  (let ((icon (if wttrin-mode-line-emoji-font
+                  (propertize "⏳"
+                              'face (list :family wttrin-mode-line-emoji-font
+                                          :height 1.0))
+                "⏳")))
+    (setq wttrin-mode-line-string
+          (propertize (concat " " icon)
+                      'help-echo (format "Fetching weather for %s..."
+                                         wttrin-favorite-location)
+                      'mouse-face 'mode-line-highlight
+                      'local-map wttrin--mode-line-map)))
+  (force-mode-line-update t))
+
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
   (when (featurep 'wttrin-debug)
@@ -580,6 +595,8 @@ Force-refresh cache and update tooltip without opening buffer."
                        wttrin-favorite-location
                        wttrin-mode-line-refresh-interval))
   (when wttrin-favorite-location
+    ;; Show placeholder immediately so user knows wttrin is active
+    (wttrin--mode-line-set-placeholder)
     ;; Delay initial fetch to allow network to initialize during startup
     (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
     ;; Set up refresh timer (starts after the interval from now)
