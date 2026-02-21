@@ -171,15 +171,15 @@ Wttrin's default is to select the unit system appropriate for the location you q
 #+end_src
 
 *** Cache Settings
-Wttrin caches weather data to reduce API calls and improve responsiveness. The cache holds data for 15 minutes by default, with a maximum of 50 entries. If you're checking weather frequently or want longer cache times, you can adjust these:
+Wttrin caches weather data and proactively refreshes it in the background. By default, the cache refreshes every hour, with a maximum of 50 entries. You can adjust these:
 
 #+begin_src emacs-lisp
-  (setq wttrin-cache-ttl (* 30 60))   ;; Cache for 30 minutes (in seconds)
-  (setq wttrin-cache-max-entries 100) ;; Store up to 100 cached locations
+  (setq wttrin-refresh-interval (* 30 60))  ;; Refresh every 30 minutes (in seconds)
+  (setq wttrin-cache-max-entries 100)       ;; Store up to 100 cached locations
 #+end_src
 
 *** Mode-line Weather Display
-Wttrin can display current weather for your favorite location directly in the mode-line. The weather updates automatically in the background every 15 minutes, showing a color emoji weather icon with full details on hover.
+Wttrin can display current weather for your favorite location directly in the mode-line. The weather updates automatically in the background every hour, showing a color emoji weather icon with full details on hover.
 
 **** Basic Setup
 To enable the mode-line weather display, set your favorite location and enable auto-start:
@@ -204,7 +204,7 @@ Alternatively, you can manually toggle the mode-line display:
 - *Tooltip*: Hover for full details (location, temperature, conditions)
 - *Left-click*: Open full weather buffer for your favorite location
 - *Right-click*: Force refresh the weather data immediately
-- *Auto-refresh*: Updates every 15 minutes automatically
+- *Auto-refresh*: Updates every hour automatically
 
 **** Customization
 You can customize several aspects of the mode-line weather display:
@@ -216,8 +216,8 @@ You can customize several aspects of the mode-line weather display:
   ;; Auto-enable mode-line weather on startup
   (setq wttrin-mode-line-auto-enable t)
 
-  ;; Adjust refresh interval (in seconds, default is 900 = 15 minutes)
-  (setq wttrin-mode-line-refresh-interval (* 10 60))  ;; Refresh every 10 minutes
+  ;; Adjust refresh interval (in seconds, default is 3600 = 1 hour)
+  (setq wttrin-mode-line-refresh-interval (* 30 60))  ;; Refresh every 30 minutes
 
   ;; Choose emoji font for color display (common options)
   (setq wttrin-mode-line-emoji-font "Apple Color Emoji")   ;; macOS

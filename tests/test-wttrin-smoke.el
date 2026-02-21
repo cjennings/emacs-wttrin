@@ -80,7 +80,7 @@ This is a REQUIRED dependency - wttrin cannot function without it."
   "Test that key defcustom variables are defined."
   (should (boundp 'wttrin-default-locations))
   (should (boundp 'wttrin-unit-system))
-  (should (boundp 'wttrin-cache-ttl))
+  (should (boundp 'wttrin-refresh-interval))
   (should (boundp 'wttrin-cache-max-entries))
   (should (boundp 'wttrin-favorite-location))
   (should (boundp 'wttrin-mode-line-refresh-interval))

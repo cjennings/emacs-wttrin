@@ -45,7 +45,7 @@
   (wttrin-clear-cache)
   (wttrin-debug-clear-log)
   (setq wttrin-mode-line-string nil)
-  (setq wttrin--mode-line-tooltip-data nil))
+  (setq wttrin--mode-line-cache nil))
 
 ;;; Mock URL Fetching
 
@@ -104,9 +104,9 @@ and emoji-extraction events to the debug log."
        (should (stringp wttrin-mode-line-string))
        (should (string-match-p "☀" wttrin-mode-line-string))  ; Should contain emoji
 
-       ;; Verify tooltip data was set
-       (should wttrin--mode-line-tooltip-data)
-       (should (string= test-wttrin-sample-weather-data wttrin--mode-line-tooltip-data))
+       ;; Verify cache was populated with weather data
+       (should wttrin--mode-line-cache)
+       (should (string= test-wttrin-sample-weather-data (cdr wttrin--mode-line-cache)))
 
        ;; Verify debug log captured key events
        (let ((log-messages (mapcar #'cdr wttrin--debug-log)))

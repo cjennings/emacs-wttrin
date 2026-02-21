@@ -75,16 +75,17 @@
   "Test that mode-line display uses wttrin--mode-line-map after refactoring.
 This test verifies the refactoring eliminated inline keymap construction."
   ;; Set up minimal mode-line state
-  (let ((wttrin-favorite-location "Test, CA")
-        (wttrin--mode-line-tooltip-data "Test weather"))
-    ;; Update the mode-line display
-    (wttrin--mode-line-update-display "☀️")
+  (let ((wttrin-favorite-location "Test, CA"))
+    (cl-letf (((symbol-function 'float-time) (lambda () 1000.0)))
+      (setq wttrin--mode-line-cache (cons 1000.0 "Test, CA: ☀️ +61°F Clear"))
+      (wttrin--mode-line-update-display))
 
     ;; Extract the keymap property from wttrin-mode-line-string
     (let ((keymap-prop (get-text-property 0 'local-map wttrin-mode-line-string)))
       ;; After refactoring, should use the shared wttrin--mode-line-map
       ;; Not a freshly constructed keymap on each call
-      (should (eq keymap-prop wttrin--mode-line-map)))))
+      (should (eq keymap-prop wttrin--mode-line-map)))
+    (setq wttrin--mode-line-cache nil)))
 
 (provide 'test-wttrin--mode-line-map)
 ;;; test-wttrin--mode-line-map.el ends here

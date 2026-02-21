@@ -72,10 +72,10 @@
   `(let ((wttrin-unit-system ,unit-system))
      ,@body))
 
-(defmacro testutil-wttrin-with-cache-ttl (ttl &rest body)
-  "Execute BODY with wttrin-cache-ttl temporarily set to TTL."
+(defmacro testutil-wttrin-with-refresh-interval (interval &rest body)
+  "Execute BODY with wttrin-refresh-interval temporarily set to INTERVAL."
   (declare (indent 1))
-  `(let ((wttrin-cache-ttl ,ttl))
+  `(let ((wttrin-refresh-interval ,interval))
      ,@body))
 
 (defmacro testutil-wttrin-with-cache-max (max-entries &rest body)
@@ -109,6 +109,15 @@
                   (insert ,response-body)
                   (funcall callback nil)))))
      ,@body))
+
+;;; Mode-line Cache Helpers
+
+(defun testutil-wttrin-set-mode-line-cache (data &optional age-seconds)
+  "Set mode-line cache to DATA, optionally aged by AGE-SECONDS."
+  (let ((timestamp (if age-seconds
+                       (- (float-time) age-seconds)
+                     (float-time))))
+    (setq wttrin--mode-line-cache (cons timestamp data))))
 
 ;;; Test Setup and Teardown
 
