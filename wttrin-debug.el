@@ -41,19 +41,22 @@
   "Fetch and display raw wttr.in data for LOCATION with line numbers.
 This is useful for debugging header parsing issues."
   (interactive "sLocation: ")
-  (let ((raw-string (wttrin--get-cached-or-fetch location)))
-    (with-current-buffer (get-buffer-create "*wttrin-debug*")
-      (erase-buffer)
-      (insert raw-string)
-      (goto-char (point-min))
-      (let ((line-num 1))
-        (while (not (eobp))
-          (beginning-of-line)
-          (insert (format "%2d: " line-num))
-          (setq line-num (1+ line-num))
-          (forward-line 1)))
-      (goto-char (point-min))
-      (switch-to-buffer (current-buffer)))))
+  (wttrin--get-cached-or-fetch
+   location
+   (lambda (raw-string)
+     (with-current-buffer (get-buffer-create "*wttrin-debug*")
+       (erase-buffer)
+       (when raw-string
+         (insert raw-string))
+       (goto-char (point-min))
+       (let ((line-num 1))
+         (while (not (eobp))
+           (beginning-of-line)
+           (insert (format "%2d: " line-num))
+           (setq line-num (1+ line-num))
+           (forward-line 1)))
+       (goto-char (point-min))
+       (switch-to-buffer (current-buffer))))))
 
 ;;;###autoload
 (defun debug-wttrin-enable ()
