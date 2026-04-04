@@ -33,6 +33,7 @@
 ;; is already present.  The defvar/declare-function suppress byte-compiler
 ;; warnings for symbols defined in the parent file.
 (defvar wttrin-debug)
+(defvar wttrin--force-refresh)
 (declare-function wttrin--get-cached-or-fetch "wttrin")
 
 ;;;###autoload

@@ -93,6 +93,8 @@ units (default)."
   :type 'string)
 
 
+(define-obsolete-variable-alias 'wttrin-cache-ttl 'wttrin-refresh-interval "0.3.0")
+
 (defcustom wttrin-refresh-interval 3600  ; 1 hour
   "Interval in seconds between proactive weather data refreshes.
 Controls how often the background timer refreshes cached weather data
@@ -101,8 +103,6 @@ is considered stale.  The wttr.in service updates roughly every 10
 minutes, so values below 600 just waste their bandwidth."
   :group 'wttrin
   :type 'integer)
-
-(define-obsolete-variable-alias 'wttrin-cache-ttl 'wttrin-refresh-interval "0.3.0")
 
 (defcustom wttrin-cache-max-entries 50
   "Maximum number of entries to keep in cache."
