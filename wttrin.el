@@ -508,6 +508,27 @@ This creates headroom to avoid frequent cleanups."
 
 ;;; Mode-line weather display
 
+(defun wttrin--make-emoji-icon (emoji &optional foreground)
+  "Create EMOJI string with optional font face and FOREGROUND color.
+Uses `wttrin-mode-line-emoji-font' when configured."
+  (if wttrin-mode-line-emoji-font
+      (propertize emoji
+                  'face (list :family wttrin-mode-line-emoji-font
+                              :height 1.0
+                              :foreground foreground))
+    (if foreground
+        (propertize emoji 'face (list :foreground foreground))
+      emoji)))
+
+(defun wttrin--set-mode-line-string (icon tooltip)
+  "Set mode-line weather string to ICON with TOOLTIP and standard properties."
+  (setq wttrin-mode-line-string
+        (propertize (concat " " icon)
+                    'help-echo tooltip
+                    'mouse-face 'mode-line-highlight
+                    'local-map wttrin--mode-line-map))
+  (force-mode-line-update t))
+
 (defun wttrin--mode-line-valid-response-p (weather-string)
   "Return non-nil if WEATHER-STRING looks like a valid mode-line response.
 Expected format: \"Location: emoji temp conditions\",
@@ -520,19 +541,11 @@ e.g., \"Paris: ☀️ +61°F Clear\"."
   "Update placeholder to show fetch error state.
 Keeps the hourglass icon but updates tooltip to explain the failure
 and indicate when retry will occur."
-  (let* ((icon (if wttrin-mode-line-emoji-font
-                   (propertize "⏳"
-                               'face (list :family wttrin-mode-line-emoji-font
-                                           :height 1.0))
-                 "⏳"))
-         (retry-minutes (ceiling (/ wttrin-mode-line-refresh-interval 60.0))))
-    (setq wttrin-mode-line-string
-          (propertize (concat " " icon)
-                      'help-echo (format "Weather fetch failed for %s — will retry in %d minutes"
-                                         wttrin-favorite-location retry-minutes)
-                      'mouse-face 'mode-line-highlight
-                      'local-map wttrin--mode-line-map)))
-  (force-mode-line-update t))
+  (let ((retry-minutes (ceiling (/ wttrin-mode-line-refresh-interval 60.0))))
+    (wttrin--set-mode-line-string
+     (wttrin--make-emoji-icon "⏳")
+     (format "Weather fetch failed for %s — will retry in %d minutes"
+             wttrin-favorite-location retry-minutes))))
 
 (defun wttrin--mode-line-fetch-weather ()
   "Fetch weather for favorite location and update mode-line display.
@@ -587,27 +600,15 @@ shows staleness info in tooltip."
       (let* ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
                         (match-string 1 weather-string)
                       "?"))
-             (emoji-with-font
-              (if wttrin-mode-line-emoji-font
-                  (propertize emoji
-                              'face (list :family wttrin-mode-line-emoji-font
-                                          :height 1.0
-                                          :foreground (when stale-p "gray60")))
-                (if stale-p
-                    (propertize emoji 'face '(:foreground "gray60"))
-                  emoji)))
              (tooltip (if stale-p
                           (format "%s\nStale: updated %s — fetch failed, will retry"
                                   weather-string age-str)
                         (format "%s\nUpdated %s" weather-string age-str))))
         (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
                            emoji stale-p)
-        (setq wttrin-mode-line-string
-              (propertize (concat " " emoji-with-font)
-                          'help-echo tooltip
-                          'mouse-face 'mode-line-highlight
-                          'local-map wttrin--mode-line-map)))))
-  (force-mode-line-update t))
+        (wttrin--set-mode-line-string
+         (wttrin--make-emoji-icon emoji (when stale-p "gray60"))
+         tooltip)))))
 
 (defun wttrin-mode-line-click ()
   "Handle left-click on mode-line weather widget.
@@ -626,18 +627,9 @@ Force-refresh cache and update tooltip without opening buffer."
 
 (defun wttrin--mode-line-set-placeholder ()
   "Set a placeholder icon in the mode-line while waiting for weather data."
-  (let ((icon (if wttrin-mode-line-emoji-font
-                  (propertize "⏳"
-                              'face (list :family wttrin-mode-line-emoji-font
-                                          :height 1.0))
-                "⏳")))
-    (setq wttrin-mode-line-string
-          (propertize (concat " " icon)
-                      'help-echo (format "Fetching weather for %s..."
-                                         wttrin-favorite-location)
-                      'mouse-face 'mode-line-highlight
-                      'local-map wttrin--mode-line-map)))
-  (force-mode-line-update t))
+  (wttrin--set-mode-line-string
+   (wttrin--make-emoji-icon "⏳")
+   (format "Fetching weather for %s..." wttrin-favorite-location)))
 
 (defvar wttrin--buffer-refresh-timer nil
   "Timer object for proactive buffer cache refresh.")
