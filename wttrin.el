@@ -97,7 +97,8 @@ units (default)."
   "Interval in seconds between proactive weather data refreshes.
 Controls how often the background timer refreshes cached weather data
 for `wttrin-favorite-location'.  Data older than 2x this interval
-is considered stale."
+is considered stale.  The wttr.in service updates roughly every 10
+minutes, so values below 600 just waste their bandwidth."
   :group 'wttrin
   :type 'integer)
 
@@ -126,7 +127,9 @@ The weather icon and tooltip will update automatically in the background."
 
 (defcustom wttrin-mode-line-refresh-interval 3600
   "Interval in seconds to refresh mode-line weather data.
-Default is 3600 seconds (1 hour)."
+Default is 3600 seconds (1 hour).  The wttr.in service updates its
+data roughly every 10 minutes; polling more often than that just
+wastes their bandwidth.  Be kind to the free service."
   :group 'wttrin
   :type 'integer)
 
