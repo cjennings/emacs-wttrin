@@ -592,6 +592,21 @@ On failure with no cache, shows error placeholder."
              ;; No cache at all — show error placeholder
              (wttrin--mode-line-update-placeholder-error))))))))
 
+(defun wttrin--mode-line-tooltip (&optional _window _object _pos)
+  "Compute tooltip text from `wttrin--mode-line-cache'.
+Calculates age at call time so the tooltip is always current.
+Optional arguments are ignored (required by `help-echo' function protocol)."
+  (when wttrin--mode-line-cache
+    (let* ((timestamp (car wttrin--mode-line-cache))
+           (weather-string (cdr wttrin--mode-line-cache))
+           (age (- (float-time) timestamp))
+           (stale-p (> age (* 2 wttrin-mode-line-refresh-interval)))
+           (age-str (wttrin--format-age age)))
+      (if stale-p
+          (format "%s\nStale: updated %s — fetch failed, will retry"
+                  weather-string age-str)
+        (format "%s\nUpdated %s" weather-string age-str)))))
+
 (defun wttrin--mode-line-update-display ()
   "Update mode-line display from `wttrin--mode-line-cache'.
 Reads cached weather data, computes age, and sets the mode-line string.
@@ -601,23 +616,20 @@ shows staleness info in tooltip."
     (let* ((timestamp (car wttrin--mode-line-cache))
            (weather-string (cdr wttrin--mode-line-cache))
            (age (- (float-time) timestamp))
-           (stale-p (> age (* 2 wttrin-mode-line-refresh-interval)))
-           (age-str (wttrin--format-age age)))
-      (wttrin--debug-log "mode-line-display: Updating from cache, age=%s, stale=%s"
-                         age-str stale-p)
+           (stale-p (> age (* 2 wttrin-mode-line-refresh-interval))))
+      (wttrin--debug-log "mode-line-display: Updating from cache, stale=%s" stale-p)
       ;; Extract just the emoji for mode-line display
-      (let* ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
-                        (match-string 1 weather-string)
-                      "?"))
-             (tooltip (if stale-p
-                          (format "%s\nStale: updated %s — fetch failed, will retry"
-                                  weather-string age-str)
-                        (format "%s\nUpdated %s" weather-string age-str))))
+      (let ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
+                       (match-string 1 weather-string)
+                     "?")))
         (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
                            emoji stale-p)
-        (wttrin--set-mode-line-string
-         (wttrin--make-emoji-icon emoji (when stale-p "gray60"))
-         tooltip)))))
+        (setq wttrin-mode-line-string
+              (propertize (concat " " (wttrin--make-emoji-icon emoji (when stale-p "gray60")))
+                          'help-echo #'wttrin--mode-line-tooltip
+                          'mouse-face 'mode-line-highlight
+                          'local-map wttrin--mode-line-map)))))
+  (force-mode-line-update t))
 
 (defun wttrin-mode-line-click ()
   "Handle left-click on mode-line weather widget.
