@@ -300,11 +300,6 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
 CALLBACK is called with the weather data string when ready, or nil on error."
   (wttrin--fetch-url (wttrin--build-url query) callback))
 
-(defun wttrin-exit ()
-  "Exit the wttrin buffer."
-  (interactive)
-  (quit-window t))
-
 (defun wttrin--requery-location (new-location)
   "Kill current weather buffer and query NEW-LOCATION."
   (when (get-buffer "*wttr.in*")
