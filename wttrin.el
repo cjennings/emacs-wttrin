@@ -39,9 +39,14 @@
 ;; Declare xterm-color functions (loaded on-demand)
 (declare-function xterm-color-filter "xterm-color" (string))
 
-;; Declare functions from wttrin-debug.el (loaded conditionally)
-(declare-function wttrin--debug-mode-line-info "wttrin-debug")
-(declare-function wttrin--debug-log "wttrin-debug")
+;; No-op stubs for debug functions (overridden when wttrin-debug.el is loaded)
+(defun wttrin--debug-mode-line-info ()
+  "No-op stub.  Replaced by `wttrin-debug' when debug mode is active."
+  nil)
+
+(defun wttrin--debug-log (_format-string &rest _args)
+  "No-op stub.  Replaced by `wttrin-debug' when debug mode is active."
+  nil)
 
 (defgroup wttrin nil
   "Emacs frontend for the weather web service wttr.in."
@@ -248,47 +253,40 @@ Returns nil on error.  Kills buffer when done."
             (let ((body (decode-coding-string
                          (buffer-substring-no-properties (point) (point-max))
                          'utf-8)))
-              (when (featurep 'wttrin-debug)
-                (wttrin--debug-log "wttrin--extract-response-body: Successfully fetched %d bytes"
-                                   (length body)))
+              (wttrin--debug-log "wttrin--extract-response-body: Successfully fetched %d bytes"
+                                 (length body))
               body))
         (ignore-errors (kill-buffer (current-buffer))))
     (error
-     (when (featurep 'wttrin-debug)
-       (wttrin--debug-log "wttrin--extract-response-body: Error - %s"
-                          (error-message-string err)))
+     (wttrin--debug-log "wttrin--extract-response-body: Error - %s"
+                        (error-message-string err))
      (ignore-errors (kill-buffer (current-buffer)))
      nil)))
 
 (defun wttrin--handle-fetch-callback (status callback)
   "Handle `url-retrieve' callback STATUS and invoke CALLBACK with result.
 Extracts response body or handles errors, then calls CALLBACK with data or nil."
-  (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "wttrin--handle-fetch-callback: Invoked with status = %S" status))
+  (wttrin--debug-log "wttrin--handle-fetch-callback: Invoked with status = %S" status)
   (let ((data nil))
     (if (plist-get status :error)
-        (when (featurep 'wttrin-debug)
-          (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
-                             (cdr (plist-get status :error))))
+        (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
+                           (cdr (plist-get status :error)))
       (setq data (wttrin--extract-response-body)))
     (condition-case err
         (progn
-          (when (featurep 'wttrin-debug)
-            (wttrin--debug-log "wttrin--handle-fetch-callback: Calling user callback with %s"
-                               (if data (format "%d bytes" (length data)) "nil")))
+          (wttrin--debug-log "wttrin--handle-fetch-callback: Calling user callback with %s"
+                             (if data (format "%d bytes" (length data)) "nil"))
           (funcall callback data))
       (error
-       (when (featurep 'wttrin-debug)
-         (wttrin--debug-log "wttrin--handle-fetch-callback: Error in user callback - %s"
-                            (error-message-string err)))
+       (wttrin--debug-log "wttrin--handle-fetch-callback: Error in user callback - %s"
+                          (error-message-string err))
        (message "wttrin: Error in callback - %s" (error-message-string err))))))
 
 (defun wttrin--fetch-url (url callback)
   "Asynchronously fetch URL and call CALLBACK with decoded response.
 CALLBACK is called with the weather data string when ready, or nil on error.
 Handles header skipping, UTF-8 decoding, and error handling automatically."
-  (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "wttrin--fetch-url: Starting fetch for URL: %s" url))
+  (wttrin--debug-log "wttrin--fetch-url: Starting fetch for URL: %s" url)
   (let ((url-request-extra-headers (list wttrin-default-languages))
         (url-user-agent "curl"))
     (url-retrieve url
@@ -347,8 +345,7 @@ Returns the path to the saved file."
       (insert (format "wttrin-unit-system: %s\n" wttrin-unit-system))
       (insert "\n--- Raw Response ---\n\n")
       (insert (or raw-string "(nil — no data received)")))
-    (when (featurep 'wttrin-debug)
-      (wttrin--debug-log "Debug data saved to: %s" filepath))
+    (wttrin--debug-log "Debug data saved to: %s" filepath)
     filepath))
 
 (defun wttrin--validate-weather-data (raw-string)
@@ -420,8 +417,7 @@ Looks up the cache timestamp for LOCATION and formats a line like
       (setq-local wttrin--current-location location-name)
 
       ;; Auto-generate debug diagnostics if debug mode is enabled
-      (when (featurep 'wttrin-debug)
-        (wttrin--debug-mode-line-info)))))
+      (wttrin--debug-mode-line-info))))
 
 (defun wttrin-query (location-name)
   "Asynchronously query weather of LOCATION-NAME, display result when ready."
@@ -544,11 +540,9 @@ Uses wttr.in custom format for concise weather with emoji.
 On success, writes to `wttrin--mode-line-cache' and updates display.
 On failure with existing cache, shows stale data.
 On failure with no cache, shows error placeholder."
-  (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location))
+  (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location)
   (if (not wttrin-favorite-location)
-      (when (featurep 'wttrin-debug)
-        (wttrin--debug-log "mode-line-fetch: No favorite location set, skipping"))
+      (wttrin--debug-log "mode-line-fetch: No favorite location set, skipping")
     (let* ((location wttrin-favorite-location)
            (format-params (if wttrin-unit-system
                               (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
@@ -556,24 +550,20 @@ On failure with no cache, shows error placeholder."
            (url (concat "https://wttr.in/"
                        (url-hexify-string location)
                        format-params)))
-      (when (featurep 'wttrin-debug)
-        (wttrin--debug-log "mode-line-fetch: URL = %s" url))
+      (wttrin--debug-log "mode-line-fetch: URL = %s" url)
       (wttrin--fetch-url
        url
        (lambda (data)
          (if data
              (let ((trimmed-data (string-trim data)))
-               (when (featurep 'wttrin-debug)
-                 (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data))
+               (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data)
                (if (wttrin--mode-line-valid-response-p trimmed-data)
                    (progn
                      (setq wttrin--mode-line-cache (cons (float-time) trimmed-data))
                      (wttrin--mode-line-update-display))
-                 (when (featurep 'wttrin-debug)
-                   (wttrin--debug-log "mode-line-fetch: Invalid response, keeping previous display"))))
+                 (wttrin--debug-log "mode-line-fetch: Invalid response, keeping previous display")))
            ;; Network error / nil data
-           (when (featurep 'wttrin-debug)
-             (wttrin--debug-log "mode-line-fetch: No data received (network error)"))
+           (wttrin--debug-log "mode-line-fetch: No data received (network error)")
            (if wttrin--mode-line-cache
                ;; Have stale cache — update display to show staleness
                (wttrin--mode-line-update-display)
@@ -591,9 +581,8 @@ shows staleness info in tooltip."
            (age (- (float-time) timestamp))
            (stale-p (> age (* 2 wttrin-mode-line-refresh-interval)))
            (age-str (wttrin--format-age age)))
-      (when (featurep 'wttrin-debug)
-        (wttrin--debug-log "mode-line-display: Updating from cache, age=%s, stale=%s"
-                           age-str stale-p))
+      (wttrin--debug-log "mode-line-display: Updating from cache, age=%s, stale=%s"
+                         age-str stale-p)
       ;; Extract just the emoji for mode-line display
       (let* ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
                         (match-string 1 weather-string)
@@ -611,9 +600,8 @@ shows staleness info in tooltip."
                           (format "%s\nStale: updated %s — fetch failed, will retry"
                                   weather-string age-str)
                         (format "%s\nUpdated %s" weather-string age-str))))
-        (when (featurep 'wttrin-debug)
-          (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
-                             emoji stale-p))
+        (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
+                           emoji stale-p)
         (setq wttrin-mode-line-string
               (propertize (concat " " emoji-with-font)
                           'help-echo tooltip
@@ -671,10 +659,9 @@ opens the weather buffer."
 
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
-  (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
-                       wttrin-favorite-location
-                       wttrin-mode-line-refresh-interval))
+  (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
+                     wttrin-favorite-location
+                     wttrin-mode-line-refresh-interval)
   (when wttrin-favorite-location
     ;; Show placeholder immediately so user knows wttrin is active
     (wttrin--mode-line-set-placeholder)
@@ -694,15 +681,13 @@ opens the weather buffer."
           (run-at-time wttrin-refresh-interval
                       wttrin-refresh-interval
                       #'wttrin--buffer-cache-refresh))
-    (when (featurep 'wttrin-debug)
-      (wttrin--debug-log "wttrin mode-line: Initial fetch scheduled in %s seconds, then every %s seconds"
-                         wttrin-mode-line-startup-delay
-                         wttrin-mode-line-refresh-interval))))
+    (wttrin--debug-log "wttrin mode-line: Initial fetch scheduled in %s seconds, then every %s seconds"
+                       wttrin-mode-line-startup-delay
+                       wttrin-mode-line-refresh-interval)))
 
 (defun wttrin--mode-line-stop ()
   "Stop mode-line weather display and cancel timers."
-  (when (featurep 'wttrin-debug)
-    (wttrin--debug-log "wttrin mode-line: Stopping mode-line display"))
+  (wttrin--debug-log "wttrin mode-line: Stopping mode-line display")
   (when wttrin--mode-line-timer
     (cancel-timer wttrin--mode-line-timer)
     (setq wttrin--mode-line-timer nil))
@@ -721,23 +706,19 @@ When enabled, shows weather for `wttrin-favorite-location'."
   :lighter (:eval wttrin-mode-line-string)
   (if wttrin-mode-line-mode
       (progn
-        (when (featurep 'wttrin-debug)
-          (wttrin--debug-log "wttrin mode-line: Mode enabled"))
+        (wttrin--debug-log "wttrin mode-line: Mode enabled")
         ;; Delay network activity until Emacs is fully initialized
         (if (and (not after-init-time) (not noninteractive))
             (progn
-              (when (featurep 'wttrin-debug)
-                (wttrin--debug-log "wttrin mode-line: Deferring start until after-init-hook"))
+              (wttrin--debug-log "wttrin mode-line: Deferring start until after-init-hook")
               (add-hook 'after-init-hook #'wttrin--mode-line-start))
           (wttrin--mode-line-start))
         ;; Add modeline string to global-mode-string for custom modelines
         (if global-mode-string
             (add-to-list 'global-mode-string 'wttrin-mode-line-string 'append)
           (setq global-mode-string '("" wttrin-mode-line-string)))
-        (when (featurep 'wttrin-debug)
-          (wttrin--debug-log "wttrin mode-line: Added to global-mode-string = %S" global-mode-string)))
-    (when (featurep 'wttrin-debug)
-      (wttrin--debug-log "wttrin mode-line: Mode disabled"))
+        (wttrin--debug-log "wttrin mode-line: Added to global-mode-string = %S" global-mode-string))
+    (wttrin--debug-log "wttrin mode-line: Mode disabled")
     (wttrin--mode-line-stop)
     ;; Remove from global-mode-string
     (setq global-mode-string
