@@ -39,10 +39,12 @@
 ;;;###autoload
 (defun debug-wttrin-show-raw (location)
   "Fetch and display raw wttr.in data for LOCATION with line numbers.
-This is useful for debugging header parsing issues."
+This is useful for debugging header parsing issues.
+Always fetches fresh data from the API, bypassing cache."
   (interactive "sLocation: ")
-  (wttrin--get-cached-or-fetch
-   location
+  (let ((wttrin--force-refresh t))
+    (wttrin--get-cached-or-fetch
+     location
    (lambda (raw-string)
      (with-current-buffer (get-buffer-create "*wttrin-debug*")
        (erase-buffer)
@@ -56,7 +58,7 @@ This is useful for debugging header parsing issues."
            (setq line-num (1+ line-num))
            (forward-line 1)))
        (goto-char (point-min))
-       (switch-to-buffer (current-buffer))))))
+       (switch-to-buffer (current-buffer)))))))
 
 ;;;###autoload
 (defun debug-wttrin-enable ()

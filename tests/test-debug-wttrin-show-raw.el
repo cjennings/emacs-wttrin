@@ -100,5 +100,22 @@
         (should (get-buffer "*wttrin-debug*")))
     (test-debug-wttrin-show-raw-teardown)))
 
+(ert-deftest test-debug-wttrin-show-raw-normal-always-fetches-fresh ()
+  "A debug command should always fetch from the API, not serve cached data.
+When debugging, the user needs to see what the API currently returns."
+  (test-debug-wttrin-show-raw-setup)
+  (unwind-protect
+      (let ((force-refresh-was-set nil))
+        ;; Seed cache so there IS data to serve
+        (testutil-wttrin-add-to-cache "Paris" "old cached data" 300)
+        (cl-letf (((symbol-function 'wttrin--get-cached-or-fetch)
+                   (lambda (_location callback)
+                     (setq force-refresh-was-set wttrin--force-refresh)
+                     (funcall callback "fresh from API"))))
+          (debug-wttrin-show-raw "Paris")
+          ;; Force-refresh should have been active during the fetch
+          (should force-refresh-was-set)))
+    (test-debug-wttrin-show-raw-teardown)))
+
 (provide 'test-debug-wttrin-show-raw)
 ;;; test-debug-wttrin-show-raw.el ends here
