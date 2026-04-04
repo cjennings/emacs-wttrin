@@ -243,5 +243,17 @@ not the lowercase version that wttr.in returns."
             (should (string-match-p "Wind: 5 km/h" contents)))))
     (test-wttrin--display-weather-teardown)))
 
+;;; Line Wrapping
+
+(ert-deftest test-wttrin--display-weather-normal-truncate-lines-enabled ()
+  "Weather buffer should not wrap lines — the ASCII art breaks if it does."
+  (test-wttrin--display-weather-setup)
+  (unwind-protect
+      (testutil-wttrin-with-clean-weather-buffer
+        (wttrin--display-weather "Paris" test-wttrin--display-weather-sample-raw-data)
+        (with-current-buffer "*wttr.in*"
+          (should truncate-lines)))
+    (test-wttrin--display-weather-teardown)))
+
 (provide 'test-wttrin--display-weather)
 ;;; test-wttrin--display-weather.el ends here

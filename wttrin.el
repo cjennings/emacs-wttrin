@@ -370,6 +370,8 @@ Weather data is displayed in a read-only buffer with the following keybindings:
 
 \\{wttrin-mode-map}"
   (buffer-disable-undo)
+  ;; ASCII art breaks if lines wrap at the window edge
+  (setq truncate-lines t)
   ;; Use face-remap instead of buffer-face-mode to preserve xterm-color faces
   (face-remap-add-relative 'default
                            :family wttrin-font-name
