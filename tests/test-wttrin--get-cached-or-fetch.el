@@ -59,7 +59,7 @@
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should return cached data immediately
           (should (equal callback-result test-wttrin--get-cached-or-fetch-sample-weather))
@@ -88,7 +88,7 @@
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should call fetch
           (should fetch-called)
@@ -125,7 +125,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should serve old data without fetching
           (should-not fetch-called)
@@ -160,7 +160,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should fetch despite fresh cache
           (should fetch-called)
@@ -189,7 +189,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should fetch
           (should fetch-called)
@@ -225,14 +225,14 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
           (let ((wttrin-unit-system "m"))
             (wttrin--get-cached-or-fetch
              location
-             (lambda (data) (setq callback-result data)))
+             (lambda (data &optional _error-msg) (setq callback-result data)))
             (should (equal callback-result metric-data)))
 
           ;; Fetch with imperial - should get imperial cache
           (let ((wttrin-unit-system "u"))
             (wttrin--get-cached-or-fetch
              location
-             (lambda (data) (setq callback-result data)))
+             (lambda (data &optional _error-msg) (setq callback-result data)))
             (should (equal callback-result imperial-data)))))
     (test-wttrin--get-cached-or-fetch-teardown)))
 
@@ -266,7 +266,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should fall back to stale cache
           (should (equal callback-result test-wttrin--get-cached-or-fetch-sample-weather))
@@ -296,7 +296,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should return nil (no fallback available)
           (should (null callback-result))))
@@ -321,7 +321,7 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
 
           (wttrin--get-cached-or-fetch
            location
-           (lambda (data) (setq callback-result data)))
+           (lambda (data &optional _error-msg) (setq callback-result data)))
 
           ;; Should attempt to fetch (nil is a valid location input)
           (should fetch-called)

@@ -47,7 +47,7 @@
                    (lambda (_url callback)
                      (funcall callback "weather response"))))
           (wttrin-fetch-raw-string "Paris"
-                                   (lambda (data) (setq received-data data)))
+                                   (lambda (data &optional _error-msg) (setq received-data data)))
           (should (equal received-data "weather response"))))
     (test-wttrin-fetch-raw-string-teardown)))
 

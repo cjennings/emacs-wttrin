@@ -41,7 +41,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -61,7 +61,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-data data)))
 
       (should (string-match-p "☀️" callback-data))
@@ -82,7 +82,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-data data)))
 
       ;; Headers should not be in the data
@@ -104,7 +104,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-data data)))
 
       (should (string= "" callback-data)))))
@@ -122,7 +122,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-data data)))
 
       (should (= 10000 (length callback-data))))))
@@ -141,7 +141,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-data data)))
 
       (should (string= "Weather data" callback-data)))))
@@ -160,7 +160,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -180,7 +180,7 @@
 
       (wttrin--fetch-url
        "http://example.com/weather"
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)))
 
       (should callback-called)

@@ -45,7 +45,7 @@ Always fetches fresh data from the API, bypassing cache."
   (let ((wttrin--force-refresh t))
     (wttrin--get-cached-or-fetch
      location
-   (lambda (raw-string)
+   (lambda (raw-string &optional _error-msg)
      (with-current-buffer (get-buffer-create "*wttrin-debug*")
        (erase-buffer)
        (when raw-string

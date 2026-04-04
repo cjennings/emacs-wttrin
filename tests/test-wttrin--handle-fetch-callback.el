@@ -33,7 +33,7 @@
                (lambda () "Weather: ☀️ Sunny")))
       (wttrin--handle-fetch-callback
        nil ;; status with no error
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -48,7 +48,7 @@
                (lambda () "")))
       (wttrin--handle-fetch-callback
        nil
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -64,7 +64,7 @@
                (lambda () large-data)))
       (wttrin--handle-fetch-callback
        nil
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -81,7 +81,7 @@
                (lambda () "data")))
       (wttrin--handle-fetch-callback
        nil ;; nil status means success
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)))
 
       (should callback-called))))
@@ -94,7 +94,7 @@
                (lambda () "data")))
       (wttrin--handle-fetch-callback
        '() ;; empty plist, no error key
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -108,7 +108,7 @@
                (lambda () "data")))
       (wttrin--handle-fetch-callback
        '(:peer "example.com" :redirect nil) ;; status with other keys
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)))
 
       (should callback-called))))
@@ -121,7 +121,7 @@
         (callback-data 'not-nil))
     (wttrin--handle-fetch-callback
      '(:error (error "Network unreachable"))
-     (lambda (data)
+     (lambda (data &optional _error-msg)
        (setq callback-called t)
        (setq callback-data data)))
 
@@ -134,7 +134,7 @@
         (callback-data 'not-nil))
     (wttrin--handle-fetch-callback
      '(:error (error "HTTP 404"))
-     (lambda (data)
+     (lambda (data &optional _error-msg)
        (setq callback-called t)
        (setq callback-data data)))
 
@@ -147,7 +147,7 @@
         (callback-data 'not-nil))
     (wttrin--handle-fetch-callback
      '(:error (error "Request timed out"))
-     (lambda (data)
+     (lambda (data &optional _error-msg)
        (setq callback-called t)
        (setq callback-data data)))
 
@@ -164,7 +164,7 @@
       (condition-case err
           (wttrin--handle-fetch-callback
            nil
-           (lambda (data)
+           (lambda (data &optional _error-msg)
              (setq callback-called t)
              (error "User callback error")))
         (error
@@ -183,7 +183,7 @@
       (condition-case err
           (wttrin--handle-fetch-callback
            nil
-           (lambda (data)
+           (lambda (data &optional _error-msg)
              (setq callback-called t)))
         (error
          (setq error-caught t)))
@@ -200,7 +200,7 @@
                (lambda () nil)))
       (wttrin--handle-fetch-callback
        nil
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (setq callback-called t)
          (setq callback-data data)))
 
@@ -213,13 +213,59 @@
         (callback-data 'not-nil))
     (wttrin--handle-fetch-callback
      '(:error (error "First error") :another-error "Second error")
-     (lambda (data)
+     (lambda (data &optional _error-msg)
        (setq callback-called t)
        (setq callback-data data)))
 
     (should callback-called)
     ;; Should return nil when :error key is present
     (should (null callback-data))))
+
+;;; User-facing error messages
+
+(ert-deftest test-wttrin--handle-fetch-callback-error-network-shows-message ()
+  "Network errors should show a specific message in the echo area,
+not leave the user guessing."
+  (let ((displayed-message nil))
+    (cl-letf (((symbol-function 'wttrin--extract-response-body)
+               (lambda () nil))
+              ((symbol-function 'message)
+               (lambda (fmt &rest args)
+                 (setq displayed-message (apply #'format fmt args)))))
+      (wttrin--handle-fetch-callback
+       '(:error (error "Network unreachable"))
+       #'ignore)
+      (should displayed-message)
+      (should (string-match-p "network" (downcase displayed-message))))))
+
+(ert-deftest test-wttrin--handle-fetch-callback-error-http-404-shows-message ()
+  "HTTP 404 should tell the user the location wasn't found."
+  (let ((displayed-message nil))
+    (cl-letf (((symbol-function 'wttrin--extract-response-body)
+               (lambda () nil))
+              ((symbol-function 'wttrin--extract-http-status)
+               (lambda () 404))
+              ((symbol-function 'message)
+               (lambda (fmt &rest args)
+                 (setq displayed-message (apply #'format fmt args)))))
+      ;; No :error in status — url-retrieve succeeded but server returned 404
+      (wttrin--handle-fetch-callback nil #'ignore)
+      (should displayed-message)
+      (should (string-match-p "not found\\|404" (downcase displayed-message))))))
+
+(ert-deftest test-wttrin--handle-fetch-callback-error-http-500-shows-message ()
+  "HTTP 500 should tell the user the weather service had an error."
+  (let ((displayed-message nil))
+    (cl-letf (((symbol-function 'wttrin--extract-response-body)
+               (lambda () nil))
+              ((symbol-function 'wttrin--extract-http-status)
+               (lambda () 500))
+              ((symbol-function 'message)
+               (lambda (fmt &rest args)
+                 (setq displayed-message (apply #'format fmt args)))))
+      (wttrin--handle-fetch-callback nil #'ignore)
+      (should displayed-message)
+      (should (string-match-p "service\\|server\\|500" (downcase displayed-message))))))
 
 (provide 'test-wttrin--handle-fetch-callback)
 ;;; test-wttrin--handle-fetch-callback.el ends here

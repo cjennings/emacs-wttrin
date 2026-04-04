@@ -249,43 +249,75 @@ Returns \"just now\" for <60s, \"X minutes ago\", \"X hours ago\", or \"X days a
           (wttrin-additional-url-params)
           "A"))
 
+(defun wttrin--extract-http-status ()
+  "Return the HTTP status code from the current buffer, or nil.
+Reads the status line without moving point."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
+      (string-to-number (match-string 1)))))
+
 (defun wttrin--extract-response-body ()
   "Extract and decode HTTP response body from current buffer.
 Skips headers and returns UTF-8 decoded body.
-Returns nil on error.  Kills buffer when done."
+Returns nil for non-2xx status codes or on error.  Kills buffer when done."
   (condition-case err
       (unwind-protect
-          (progn
-            (goto-char (point-min))
-            ;; Skip past HTTP headers — blank line separates headers from body
-            (re-search-forward "\r?\n\r?\n" nil t)
-            (let ((body (decode-coding-string
-                         (buffer-substring-no-properties (point) (point-max))
-                         'utf-8)))
-              (wttrin--debug-log "wttrin--extract-response-body: Successfully fetched %d bytes"
-                                 (length body))
-              body))
+          (let ((status (wttrin--extract-http-status)))
+            (if (and status (>= status 300))
+                (progn
+                  (wttrin--debug-log "wttrin--extract-response-body: HTTP %d" status)
+                  nil)
+              (goto-char (point-min))
+              ;; Skip past HTTP headers — blank line separates headers from body
+              (re-search-forward "\r?\n\r?\n" nil t)
+              (let ((body (decode-coding-string
+                           (buffer-substring-no-properties (point) (point-max))
+                           'utf-8)))
+                (wttrin--debug-log "wttrin--extract-response-body: Successfully fetched %d bytes"
+                                   (length body))
+                body)))
+        ;; unwind-protect handles buffer cleanup for all paths
         (ignore-errors (kill-buffer (current-buffer))))
     (error
      (wttrin--debug-log "wttrin--extract-response-body: Error - %s"
                         (error-message-string err))
-     (ignore-errors (kill-buffer (current-buffer)))
      nil)))
 
 (defun wttrin--handle-fetch-callback (status callback)
   "Handle `url-retrieve' callback STATUS and invoke CALLBACK with result.
-Extracts response body or handles errors, then calls CALLBACK with data or nil."
+Calls CALLBACK with (DATA &optional ERROR-MSG).  DATA is the response
+body string on success, nil on failure.  ERROR-MSG is a human-readable
+description of what went wrong, or nil on success."
   (wttrin--debug-log "wttrin--handle-fetch-callback: Invoked with status = %S" status)
-  (let ((data nil))
-    (if (plist-get status :error)
-        (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
-                           (cdr (plist-get status :error)))
-      (setq data (wttrin--extract-response-body)))
+  (let ((data nil)
+        (error-msg nil))
+    (cond
+     ;; Network-level failure (DNS, connection refused, timeout)
+     ((plist-get status :error)
+      (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
+                         (cdr (plist-get status :error)))
+      (setq error-msg "Network error — check your connection")
+      (message "wttrin: %s" error-msg))
+     ;; HTTP response received — extract body (returns nil for non-2xx)
+     (t
+      (let ((http-status (wttrin--extract-http-status)))
+        (setq data (wttrin--extract-response-body))
+        (when (and (not data) http-status)
+          (setq error-msg
+                (cond
+                 ((and (>= http-status 400) (< http-status 500))
+                  (format "Location not found (HTTP %d)" http-status))
+                 ((>= http-status 500)
+                  (format "Weather service error (HTTP %d)" http-status))
+                 (t (format "Unexpected HTTP status %d" http-status))))
+          (when error-msg
+            (message "wttrin: %s" error-msg))))))
     (condition-case err
         (progn
           (wttrin--debug-log "wttrin--handle-fetch-callback: Calling user callback with %s"
                              (if data (format "%d bytes" (length data)) "nil"))
-          (funcall callback data))
+          (funcall callback data error-msg))
       (error
        (wttrin--debug-log "wttrin--handle-fetch-callback: Error in user callback - %s"
                           (error-message-string err))
@@ -394,13 +426,17 @@ Looks up the cache timestamp for LOCATION and formats a line like
              (age-str (wttrin--format-age age)))
         (format "Last updated: %s (%s)" (string-trim time-str) age-str)))))
 
-(defun wttrin--display-weather (location-name raw-string)
-  "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
+(defun wttrin--display-weather (location-name raw-string &optional error-msg)
+  "Display weather data RAW-STRING for LOCATION-NAME in weather buffer.
+When ERROR-MSG is provided and data is invalid, show that instead of
+the generic error message."
   (when wttrin-debug
     (wttrin--save-debug-data location-name raw-string))
 
   (if (not (wttrin--validate-weather-data raw-string))
-      (message "Cannot retrieve weather data. Perhaps the location was misspelled?")
+      (message "wttrin: %s"
+               (or error-msg
+                   "Cannot retrieve weather data. Perhaps the location was misspelled?"))
     (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
 
@@ -434,10 +470,10 @@ Looks up the cache timestamp for LOCATION and formats a line like
     (setq buffer-read-only t)
     (wttrin--get-cached-or-fetch
      location-name
-     (lambda (raw-string)
+     (lambda (raw-string &optional error-msg)
        (when (buffer-live-p buffer)
          (with-current-buffer buffer
-           (wttrin--display-weather location-name raw-string)))))))
+           (wttrin--display-weather location-name raw-string error-msg)))))))
 
 (defun wttrin--make-cache-key (location)
   "Create cache key from LOCATION and current settings."
@@ -447,7 +483,7 @@ Looks up the cache timestamp for LOCATION and formats a line like
   "Get cached weather for LOCATION or fetch if not cached.
 If cache has data and not force-refreshing, serves it immediately
 regardless of age.  The background refresh timer keeps data fresh.
-CALLBACK is called with the weather data string when ready, or nil on error."
+CALLBACK is called with (DATA &optional ERROR-MSG)."
   (let* ((cache-key (wttrin--make-cache-key location))
          (cached (gethash cache-key wttrin--cache))
          (data (cdr cached)))
@@ -456,7 +492,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
         (funcall callback data)
       (wttrin-fetch-raw-string
        location
-       (lambda (fresh-data)
+       (lambda (fresh-data &optional error-msg)
          (if fresh-data
              (progn
                (wttrin--cleanup-cache-if-needed)
@@ -467,7 +503,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
                (progn
                  (message "Failed to fetch new data, using cached version")
                  (funcall callback data))
-             (funcall callback nil))))))))
+             (funcall callback nil error-msg))))))))
 
 (defun wttrin--get-cache-entries-by-age ()
   "Return list of (key . timestamp) pairs sorted oldest-first.
@@ -578,7 +614,7 @@ On failure with no cache, shows error placeholder."
       (wttrin--debug-log "mode-line-fetch: URL = %s" url)
       (wttrin--fetch-url
        url
-       (lambda (data)
+       (lambda (data &optional _error-msg)
          (if data
              (let ((trimmed-data (string-trim data)))
                (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data)
@@ -676,7 +712,7 @@ opens the weather buffer."
            (cache-key (wttrin--make-cache-key location)))
       (wttrin-fetch-raw-string
        location
-       (lambda (fresh-data)
+       (lambda (fresh-data &optional _error-msg)
          (when fresh-data
            (wttrin--cleanup-cache-if-needed)
            (puthash cache-key (cons (float-time) fresh-data) wttrin--cache)))))))

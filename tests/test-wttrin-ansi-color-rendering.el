@@ -316,7 +316,7 @@ This verifies the fetch function returns unfiltered data from wttr.in."
         (testutil-wttrin-mock-http-response testutil-wttrin-sample-ansi-response
           (wttrin-fetch-raw-string
            location
-           (lambda (data)
+           (lambda (data &optional _error-msg)
              (setq callback-data data)))
 
           ;; Verify callback received ANSI codes

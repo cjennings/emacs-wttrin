@@ -163,5 +163,33 @@
         (should-not (buffer-live-p test-buffer))))
     (should (string= "data" result))))
 
+;;; HTTP Status Code Handling
+;; Note: wttrin--extract-response-body kills its buffer, so we capture
+;; the result via a let binding before the buffer disappears.
+
+(ert-deftest test-wttrin--extract-response-body-error-404-returns-nil ()
+  "A 404 response should return nil — the location doesn't exist."
+  (let (result)
+    (with-current-buffer (generate-new-buffer " *test-404*")
+      (insert "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nPage not found")
+      (setq result (wttrin--extract-response-body)))
+    (should-not result)))
+
+(ert-deftest test-wttrin--extract-response-body-error-500-returns-nil ()
+  "A 500 response should return nil — the server is broken."
+  (let (result)
+    (with-current-buffer (generate-new-buffer " *test-500*")
+      (insert "HTTP/1.1 500 Internal Server Error\r\n\r\nServer error")
+      (setq result (wttrin--extract-response-body)))
+    (should-not result)))
+
+(ert-deftest test-wttrin--extract-response-body-normal-200-still-returns-body ()
+  "A 200 response should still extract and return the body as before."
+  (let (result)
+    (with-current-buffer (generate-new-buffer " *test-200*")
+      (insert "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nWeather data here")
+      (setq result (wttrin--extract-response-body)))
+    (should (equal result "Weather data here"))))
+
 (provide 'test-wttrin--extract-response-body)
 ;;; test-wttrin--extract-response-body.el ends here
