@@ -190,7 +190,6 @@ Set this to t BEFORE loading wttrin, typically in your init file:
 
 (defvar wttrin-mode-line-string nil
   "Mode-line string showing weather for favorite location.")
-;;;###autoload(put 'wttrin-mode-line-string 'risky-local-variable t)
 (put 'wttrin-mode-line-string 'risky-local-variable t)
 
 (defvar wttrin--mode-line-timer nil
