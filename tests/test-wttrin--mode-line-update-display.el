@@ -210,6 +210,32 @@
         (should-not wttrin-mode-line-string))
     (test-wttrin--mode-line-update-display-teardown)))
 
+(ert-deftest test-wttrin--mode-line-update-display-stale-emoji-dims-on-hover-transition ()
+  "When data crosses the stale threshold between refreshes, hovering should
+trigger an emoji re-render so dimming matches the tooltip's staleness state."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-mode-line-refresh-interval 900)
+            (wttrin-mode-line-emoji-font nil))
+        ;; Initial render: data is fresh (age=200, threshold=1800)
+        (cl-letf (((symbol-function 'float-time) (lambda () 1200.0)))
+          (setq wttrin--mode-line-cache (cons 1000.0 "Paris: X +61°F Clear"))
+          (wttrin--mode-line-update-display)
+          ;; Emoji should NOT be dimmed
+          (let ((face (get-text-property 1 'face wttrin-mode-line-string)))
+            (should-not (and face (equal (plist-get face :foreground) "gray60")))))
+
+        ;; Time passes: data is now stale (age=2001, threshold=1800)
+        ;; Invoke the tooltip (simulating a hover) — this should trigger a re-render
+        (cl-letf (((symbol-function 'float-time) (lambda () 3001.0)))
+          (let ((help-echo-fn (get-text-property 0 'help-echo wttrin-mode-line-string)))
+            (funcall help-echo-fn nil nil nil))
+          ;; After hover detected staleness transition, emoji should now be dimmed
+          (let ((face (get-text-property 1 'face wttrin-mode-line-string)))
+            (should face)
+            (should (equal (plist-get face :foreground) "gray60")))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
 ;;; --------------------------------------------------------------------------
 ;;; wttrin--mode-line-fetch-weather
 ;;; --------------------------------------------------------------------------

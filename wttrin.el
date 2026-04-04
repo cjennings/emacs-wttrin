@@ -200,6 +200,9 @@ Set this to t BEFORE loading wttrin, typically in your init file:
 When non-nil, car is the `float-time' when data was fetched,
 and cdr is the weather string from the API.")
 
+(defvar wttrin--mode-line-rendered-stale nil
+  "Whether the mode-line emoji is currently rendered as stale (dimmed).")
+
 (defvar wttrin--mode-line-map
   (let ((map (make-sparse-keymap)))
     (define-key map [mode-line mouse-1] 'wttrin-mode-line-click)
@@ -594,6 +597,8 @@ On failure with no cache, shows error placeholder."
 (defun wttrin--mode-line-tooltip (&optional _window _object _pos)
   "Compute tooltip text from `wttrin--mode-line-cache'.
 Calculates age at call time so the tooltip is always current.
+If staleness has changed since the last render, triggers a re-render
+so the emoji dimming matches.
 Optional arguments are ignored (required by `help-echo' function protocol)."
   (when wttrin--mode-line-cache
     (let* ((timestamp (car wttrin--mode-line-cache))
@@ -601,6 +606,9 @@ Optional arguments are ignored (required by `help-echo' function protocol)."
            (age (- (float-time) timestamp))
            (stale-p (> age (* 2 wttrin-mode-line-refresh-interval)))
            (age-str (wttrin--format-age age)))
+      ;; Re-render emoji if staleness state has changed
+      (unless (eq stale-p wttrin--mode-line-rendered-stale)
+        (wttrin--mode-line-update-display))
       (if stale-p
           (format "%s\nStale: updated %s — fetch failed, will retry"
                   weather-string age-str)
@@ -623,6 +631,7 @@ shows staleness info in tooltip."
                      "?")))
         (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
                            emoji stale-p)
+        (setq wttrin--mode-line-rendered-stale stale-p)
         (setq wttrin-mode-line-string
               (propertize (concat " " (wttrin--make-emoji-icon emoji (when stale-p "gray60")))
                           'help-echo #'wttrin--mode-line-tooltip
@@ -708,6 +717,7 @@ opens the weather buffer."
     (setq wttrin--buffer-refresh-timer nil))
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-cache nil)
+  (setq wttrin--mode-line-rendered-stale nil)
   (force-mode-line-update t))
 
 ;;;###autoload
