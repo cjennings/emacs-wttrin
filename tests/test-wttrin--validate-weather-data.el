@@ -80,5 +80,16 @@
   "Test that 'ERROR' at end of string causes rejection."
   (should-not (wttrin--validate-weather-data "Network ERROR")))
 
+(ert-deftest test-wttrin--validate-weather-data-boundary-does-not-corrupt-match-data ()
+  "Validation should not clobber the caller's match data.
+A predicate function should use string-match-p, not string-match."
+  (string-match "\\(hello\\)" "hello world")
+  (should (equal (match-string 1 "hello world") "hello"))
+  ;; Call the predicate with a string containing ERROR so the internal
+  ;; match actually fires — a failed match doesn't modify match data
+  (wttrin--validate-weather-data "ERROR: something broke")
+  ;; Caller's match data should be intact
+  (should (equal (match-string 1 "hello world") "hello")))
+
 (provide 'test-wttrin--validate-weather-data)
 ;;; test-wttrin--validate-weather-data.el ends here

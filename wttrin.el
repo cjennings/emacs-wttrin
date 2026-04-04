@@ -350,7 +350,7 @@ Returns the path to the saved file."
 (defun wttrin--validate-weather-data (raw-string)
   "Check if RAW-STRING has valid weather data.
 Return t if valid, nil if missing or contains errors."
-  (not (or (null raw-string) (string-match "ERROR" raw-string))))
+  (not (or (null raw-string) (string-match-p "ERROR" raw-string))))
 
 (defun wttrin--process-weather-content (raw-string)
   "Process RAW-STRING: apply ANSI filtering and remove verbose lines.
