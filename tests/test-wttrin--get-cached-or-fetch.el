@@ -328,5 +328,33 @@ Proactive refresh keeps data fresh; on-demand reads always use cache."
           (should (equal callback-result test-wttrin--get-cached-or-fetch-new-weather))))
     (test-wttrin--get-cached-or-fetch-teardown)))
 
+(ert-deftest test-wttrin--get-cached-or-fetch-normal-timestamp-reflects-response-time ()
+  "Cache timestamp should reflect when the response arrived, not when
+the request was initiated.  A stale request-time timestamp would make
+the cached data appear older than it actually is."
+  (test-wttrin--get-cached-or-fetch-setup)
+  (unwind-protect
+      (let* ((location "Paris")
+             (cache-key (wttrin--make-cache-key location))
+             (response-time 5000.0))
+        (cl-letf (((symbol-function 'float-time)
+                   (lambda () response-time))
+                  ((symbol-function 'wttrin-fetch-raw-string)
+                   (lambda (_query callback)
+                     ;; Simulate time passing: response arrives later
+                     (setq response-time 5005.0)
+                     (funcall callback "fresh data")))
+                  ((symbol-function 'wttrin--cleanup-cache-if-needed)
+                   (lambda () nil)))
+          (let ((wttrin--force-refresh t))
+            (wttrin--get-cached-or-fetch
+             location
+             (lambda (_data) nil)))
+          ;; Timestamp should be 5005 (when callback ran), not 5000 (when request started)
+          (let ((cached (gethash cache-key wttrin--cache)))
+            (should cached)
+            (should (= (car cached) 5005.0)))))
+    (test-wttrin--get-cached-or-fetch-teardown)))
+
 (provide 'test-wttrin--get-cached-or-fetch)
 ;;; test-wttrin--get-cached-or-fetch.el ends here

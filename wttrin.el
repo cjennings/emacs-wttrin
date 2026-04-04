@@ -444,8 +444,7 @@ regardless of age.  The background refresh timer keeps data fresh.
 CALLBACK is called with the weather data string when ready, or nil on error."
   (let* ((cache-key (wttrin--make-cache-key location))
          (cached (gethash cache-key wttrin--cache))
-         (data (cdr cached))
-         (now (float-time)))
+         (data (cdr cached)))
     (if (and cached (not wttrin--force-refresh))
         ;; Return cached data immediately regardless of age
         (funcall callback data)
@@ -456,7 +455,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
          (if fresh-data
              (progn
                (wttrin--cleanup-cache-if-needed)
-               (puthash cache-key (cons now fresh-data) wttrin--cache)
+               (puthash cache-key (cons (float-time) fresh-data) wttrin--cache)
                (funcall callback fresh-data))
            ;; On error, return stale cache if available
            (if cached
