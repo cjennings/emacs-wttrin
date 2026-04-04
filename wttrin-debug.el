@@ -29,10 +29,9 @@
 
 ;;; Code:
 
-;; wttrin-debug.el is loaded by wttrin.el, so wttrin is already loaded
-;; No need for (require 'wttrin) here
-
-;; Declare variables and functions from wttrin.el
+;; No (require 'wttrin) — this file is loaded BY wttrin.el, so wttrin
+;; is already present.  The defvar/declare-function suppress byte-compiler
+;; warnings for symbols defined in the parent file.
 (defvar wttrin-debug)
 (declare-function wttrin--get-cached-or-fetch "wttrin")
 
@@ -108,8 +107,8 @@ This is useful for diagnosing why the mode-line lighter isn't appearing."
 
 (defun wttrin--debug-mode-line-info ()
   "Auto-generate mode-line diagnostic information.
-This function is called automatically when wttrin runs if debug mode is enabled.
-It creates the *wttrin-mode-debug* buffer with diagnostic information."
+Called after every weather buffer display.  A no-op stub in wttrin.el
+is overridden by this implementation when the debug module is loaded."
   (debug-wttrin-mode-line))
 
 (defvar wttrin--debug-log nil

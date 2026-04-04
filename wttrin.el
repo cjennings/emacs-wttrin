@@ -175,7 +175,9 @@ Set this to t BEFORE loading wttrin, typically in your init file:
   :group 'wttrin
   :type 'boolean)
 
-;; Load debug functions if enabled
+;; When debug mode is active, load the real implementations of
+;; wttrin--debug-log and wttrin--debug-mode-line-info, replacing the
+;; no-op stubs defined above.  Must be set before loading wttrin.
 (when wttrin-debug
   (require 'wttrin-debug
            (expand-file-name "wttrin-debug.el"
@@ -190,6 +192,8 @@ Set this to t BEFORE loading wttrin, typically in your init file:
 
 (defvar wttrin-mode-line-string nil
   "Mode-line string showing weather for favorite location.")
+;; Emacs strips text properties from mode-line strings unless the
+;; variable is marked risky.  Without this, face and help-echo are lost.
 (put 'wttrin-mode-line-string 'risky-local-variable t)
 
 (defvar wttrin--mode-line-timer nil
@@ -234,8 +238,7 @@ Returns \"just now\" for <60s, \"X minutes ago\", \"X hours ago\", or \"X days a
     "?"))
 
 (defun wttrin--build-url (query)
-  "Build wttr.in URL for QUERY with configured parameters.
-This is a pure function with no side effects, suitable for testing."
+  "Build wttr.in URL for QUERY with configured parameters."
   (when (null query)
     (error "Query cannot be nil"))
   (concat "https://wttr.in/"
@@ -251,6 +254,7 @@ Returns nil on error.  Kills buffer when done."
       (unwind-protect
           (progn
             (goto-char (point-min))
+            ;; Skip past HTTP headers — blank line separates headers from body
             (re-search-forward "\r?\n\r?\n" nil t)
             (let ((body (decode-coding-string
                          (buffer-substring-no-properties (point) (point-max))
@@ -289,6 +293,7 @@ Extracts response body or handles errors, then calls CALLBACK with data or nil."
 CALLBACK is called with the weather data string when ready, or nil on error.
 Handles header skipping, UTF-8 decoding, and error handling automatically."
   (wttrin--debug-log "wttrin--fetch-url: Starting fetch for URL: %s" url)
+  ;; wttr.in returns plain text for curl but HTML for browsers
   (let ((url-request-extra-headers (list wttrin-default-languages))
         (url-user-agent "curl"))
     (url-retrieve url
@@ -388,7 +393,6 @@ Looks up the cache timestamp for LOCATION and formats a line like
 
 (defun wttrin--display-weather (location-name raw-string)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer."
-  ;; Save debug data if enabled
   (when wttrin-debug
     (wttrin--save-debug-data location-name raw-string))
 
@@ -397,14 +401,14 @@ Looks up the cache timestamp for LOCATION and formats a line like
     (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
 
-      ;; Enable wttrin-mode first (calls kill-all-local-variables)
-      ;; This must be done before setting any buffer-local variables
+      ;; wttrin-mode calls kill-all-local-variables, so it must run
+      ;; before setting any buffer-local state (xterm-color, location)
       (wttrin-mode)
 
-      ;; Temporarily allow editing
       (let ((inhibit-read-only t))
         (erase-buffer)
-        ;; Initialize xterm-color state AFTER wttrin-mode to prevent it being wiped
+        ;; xterm-color--state must be set AFTER wttrin-mode for the same
+        ;; reason — mode initialization would wipe it
         (require 'xterm-color)
         (setq-local xterm-color--state :char)
         (insert (wttrin--process-weather-content raw-string))
@@ -412,13 +416,9 @@ Looks up the cache timestamp for LOCATION and formats a line like
           (when staleness
             (insert "\n" staleness)))
         (wttrin--add-buffer-instructions)
-        ;; align buffer to top
         (goto-char (point-min)))
 
-      ;; Set location after mode initialization (mode calls kill-all-local-variables)
       (setq-local wttrin--current-location location-name)
-
-      ;; Auto-generate debug diagnostics if debug mode is enabled
       (wttrin--debug-mode-line-info))))
 
 (defun wttrin-query (location-name)
@@ -449,9 +449,8 @@ CALLBACK is called with the weather data string when ready, or nil on error."
          (cached (gethash cache-key wttrin--cache))
          (data (cdr cached)))
     (if (and cached (not wttrin--force-refresh))
-        ;; Return cached data immediately regardless of age
+        ;; Serve cached data regardless of age — background timers keep it fresh
         (funcall callback data)
-      ;; Fetch fresh data asynchronously
       (wttrin-fetch-raw-string
        location
        (lambda (fresh-data)
@@ -566,6 +565,7 @@ On failure with no cache, shows error placeholder."
   (if (not wttrin-favorite-location)
       (wttrin--debug-log "mode-line-fetch: No favorite location set, skipping")
     (let* ((location wttrin-favorite-location)
+           ;; wttr.in format codes: %l=location %c=emoji %t=temp %C=conditions
            (format-params (if wttrin-unit-system
                               (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
                             "?format=%l:+%c+%t+%C"))
@@ -625,7 +625,7 @@ shows staleness info in tooltip."
            (age (- (float-time) timestamp))
            (stale-p (> age (* 2 wttrin-mode-line-refresh-interval))))
       (wttrin--debug-log "mode-line-display: Updating from cache, stale=%s" stale-p)
-      ;; Extract just the emoji for mode-line display
+      ;; Response format is "Location: ☀️ +72°F Clear" — grab first char after colon
       (let ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
                        (match-string 1 weather-string)
                      "?")))
@@ -684,18 +684,16 @@ opens the weather buffer."
                      wttrin-favorite-location
                      wttrin-mode-line-refresh-interval)
   (when wttrin-favorite-location
-    ;; Show placeholder immediately so user knows wttrin is active
     (wttrin--mode-line-set-placeholder)
-    ;; Delay initial fetch to allow network to initialize during startup
+    ;; Delay first fetch — network/daemon may not be ready at startup
     (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
-    ;; Set up refresh timer (starts after the interval from now)
+    ;; Cancel existing timers to prevent duplicates on re-enable
     (when wttrin--mode-line-timer
       (cancel-timer wttrin--mode-line-timer))
     (setq wttrin--mode-line-timer
           (run-at-time wttrin-mode-line-refresh-interval
                       wttrin-mode-line-refresh-interval
                       #'wttrin--mode-line-fetch-weather))
-    ;; Start buffer cache refresh timer
     (when wttrin--buffer-refresh-timer
       (cancel-timer wttrin--buffer-refresh-timer))
     (setq wttrin--buffer-refresh-timer
@@ -729,20 +727,21 @@ When enabled, shows weather for `wttrin-favorite-location'."
   (if wttrin-mode-line-mode
       (progn
         (wttrin--debug-log "wttrin mode-line: Mode enabled")
-        ;; Delay network activity until Emacs is fully initialized
+        ;; after-init-time is nil during startup — defer network until ready.
+        ;; noninteractive check skips deferral in batch mode (tests).
         (if (and (not after-init-time) (not noninteractive))
             (progn
               (wttrin--debug-log "wttrin mode-line: Deferring start until after-init-hook")
               (add-hook 'after-init-hook #'wttrin--mode-line-start))
           (wttrin--mode-line-start))
-        ;; Add modeline string to global-mode-string for custom modelines
+        ;; :lighter handles the built-in mode-line, but custom modelines
+        ;; (e.g., doom-modeline) read global-mode-string instead
         (if global-mode-string
             (add-to-list 'global-mode-string 'wttrin-mode-line-string 'append)
           (setq global-mode-string '("" wttrin-mode-line-string)))
         (wttrin--debug-log "wttrin mode-line: Added to global-mode-string = %S" global-mode-string))
     (wttrin--debug-log "wttrin mode-line: Mode disabled")
     (wttrin--mode-line-stop)
-    ;; Remove from global-mode-string
     (setq global-mode-string
           (delq 'wttrin-mode-line-string global-mode-string))))
 
@@ -757,7 +756,6 @@ Weather data is fetched asynchronously to avoid blocking Emacs."
                        (car wttrin-default-locations)))))
   (wttrin-query location))
 
-;; Auto-enable mode-line display if requested
 (when wttrin-mode-line-auto-enable
   (wttrin-mode-line-mode 1))
 
