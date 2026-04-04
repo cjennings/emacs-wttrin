@@ -5,7 +5,7 @@
 ;;
 ;; Original Authors: Carl X. Su <bcbcarl@gmail.com>
 ;;                   ono hiroko (kuanyui) <azazabc123@gmail.com>
-;; Version: 0.2.3
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "24.4") (xterm-color "1.0"))
 ;; Keywords: weather, wttrin, games
 ;; URL: https://github.com/cjennings/emacs-wttrin
