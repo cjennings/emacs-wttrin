@@ -6,7 +6,7 @@
 [[https://melpa.org/#/wttrin][file:https://melpa.org/packages/wttrin-badge.svg]]
 [[https://stable.melpa.org/#/wttrin][file:https://stable.melpa.org/packages/wttrin-badge.svg]]
 
-Wttrin is a simple Emacs frontend for Igor Chubin's popular Weather Web Service [[https://github.com/chubin/wttr.in][wttr.in]]. It requires Emacs 24.4 or later and the [[https://github.com/atomontage/xterm-color][xterm-color]] package (installed automatically from MELPA).
+Wttrin is a simple Emacs frontend for Igor Chubin's [[https://github.com/chubin/wttr.in][wttr.in]] weather service. It works with Emacs 24.4+ and needs [[https://github.com/atomontage/xterm-color][xterm-color]] for the colored ASCII art (MELPA handles that dependency for you).
 
 [[assets/wttrin.png]]
 
@@ -40,7 +40,7 @@ If you're running Emacs 30 or later, you can install Wttrin directly from its Gi
     (wttrin-default-locations '("Jeffreys Bay" "Raglan" "Mundaka")))
 #+end_src
 
-The `:vc` keyword automatically handles installation from the repository and updates when you run `M-x package-vc-upgrade`, making it easy to stay current with the main branch.
+The =:vc= keyword handles installation and updates. Run =M-x package-vc-upgrade= to pull the latest.
 
 *** Straight
 For the Elisp hackers using Straight for lockfiles or for easy hacking on bug fix PRs, you probably don't need me to tell you what to put in your Emacs init, but here it is anyway.
@@ -106,7 +106,7 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `a` to check another location, `g` to refresh, or `q` to quit.
 
-If cached data is available, the buffer shows a staleness line below the weather art (e.g., "Last updated: 2:30 PM (5 minutes ago)") so you know how fresh the data is.
+If you're looking at cached data, a line below the weather art tells you how old it is (e.g., "Last updated: 2:30 PM (5 minutes ago)").
 
 ** Customization
 Wttrin can be customized using the built-in Emacs Customize interface. To do this, type M-x customize ⏎ wttrin ⏎ and use the UI. However, it's more portable and reproducible to keep the customizations in your init file, so do that.
@@ -164,7 +164,7 @@ You can change the font size by changing the font height. The default is 130. No
 #+end_src
 
 *** Unit System
-Wttrin's default is to select the unit system appropriate for the location you query. Some may want the units they're familiar for the weather in all locations.
+Wttrin's default is to select the unit system appropriate for the location you query. If you'd rather see everything in the units you're used to:
 
 #+begin_src emacs-lisp
   (setq wttrin-unit-system "m") ;; for Metric units
@@ -173,7 +173,7 @@ Wttrin's default is to select the unit system appropriate for the location you q
 #+end_src
 
 *** Cache Settings
-Wttrin caches weather data and proactively refreshes it in the background. By default, the cache refreshes every hour, with a maximum of 50 entries. You can adjust these:
+Wttrin caches weather data and refreshes it in the background. By default it refreshes every hour and keeps up to 50 entries. You can adjust both:
 
 #+begin_src emacs-lisp
   (setq wttrin-refresh-interval (* 30 60))  ;; Refresh every 30 minutes (in seconds)
@@ -183,7 +183,7 @@ Wttrin caches weather data and proactively refreshes it in the background. By de
 To manually clear all cached data, run =M-x wttrin-clear-cache=.
 
 *** Mode-line Weather Display
-Wttrin can display current weather for your favorite location directly in the mode-line. The weather updates automatically in the background every hour, showing a color emoji weather icon with full details on hover.
+Wttrin can show a weather emoji for your favorite location right in the mode-line. It refreshes hourly in the background, and hovering over it gives you the full picture — location, temperature, conditions, and when the data was last fetched.
 
 **** Basic Setup
 To enable the mode-line weather display, set your favorite location and enable auto-start:
@@ -203,16 +203,12 @@ Alternatively, you can manually toggle the mode-line display:
   (wttrin-mode-line-mode 0)  ;; Disable
 #+end_src
 
-**** Features
-- *Mode-line icon*: Shows just a color emoji (e.g., ☀️ 🌧️ ⛅)
-- *Tooltip*: Hover for full details — location, temperature, conditions, and how long ago the data was fetched
-- *Staleness*: If refreshes fail, the emoji dims to gray and the tooltip explains what's happening
-- *Left-click*: Open full weather buffer for your favorite location
-- *Right-click*: Force refresh the weather data immediately
-- *Auto-refresh*: Updates every hour automatically
+**** What it does
+The mode-line shows a color emoji (☀️ 🌧️ ⛅ etc.) that updates hourly. Left-click opens the full weather buffer. Right-click forces a refresh.
+
+If a refresh fails, the emoji dims to gray and the tooltip tells you what went wrong and when it'll retry. Once the connection comes back, everything returns to normal on its own.
 
 **** Customization
-You can customize several aspects of the mode-line weather display:
 
 #+begin_src emacs-lisp
   ;; Set your favorite location (required for mode-line display)
@@ -230,18 +226,18 @@ You can customize several aspects of the mode-line weather display:
   (setq wttrin-mode-line-emoji-font "Segoe UI Emoji")      ;; Windows
   (setq wttrin-mode-line-emoji-font nil)                   ;; Use default font
 
-  ;; Delay before initial fetch (1-10 seconds, default 3)
-  ;; Gives the network stack time to initialize during Emacs startup
+  ;; How long to wait before the first fetch (1-10 seconds, default 3)
+  ;; Useful if your network is slow to come up after Emacs starts
   (setq wttrin-mode-line-startup-delay 5)
 #+end_src
 
 *Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
 
 ** Debugging and Troubleshooting
-If wttrin isn't working as expected, enable debug mode to see detailed logging of what's happening.
+If something isn't working, debug mode logs every fetch, every display update, and every error.
 
 *** Enabling Debug Mode
-*Important:* The `wttrin-debug` variable must be set *before* wttrin loads, as it's checked at load time to decide whether to load the debug module. Use `:preface` to set it before the package loads.
+*Important:* =wttrin-debug= must be set *before* wttrin loads — it's checked at load time. In use-package, that means =:preface=, not =:custom=.
 
 **** For use-package installations:
 #+begin_src emacs-lisp
@@ -272,18 +268,7 @@ If wttrin isn't working as expected, enable debug mode to see detailed logging o
 #+end_src
 
 *** Viewing Debug Output
-Once debug mode is enabled, you can view the debug log:
-
-#+begin_src emacs-lisp
-  M-x wttrin-debug-show-log
-#+end_src
-
-This shows a timestamped log of all wttrin operations:
-- URL fetch attempts
-- Data received (with byte counts)
-- Mode-line display updates
-- Emoji extraction
-- Any errors encountered
+Run =M-x wttrin-debug-show-log= to see a timestamped log of fetch attempts, responses, display updates, and errors.
 
 *** Example Debug Output
 When working correctly, the debug log looks like:
