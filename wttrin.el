@@ -507,6 +507,14 @@ This creates headroom to avoid frequent cleanups."
 
 ;;; Mode-line weather display
 
+(defun wttrin--replace-response-location (response location)
+  "Replace the API's location prefix in RESPONSE with LOCATION.
+The wttr.in API returns locations in lowercase.  This substitutes the
+user's original casing so tooltips display what the user expects."
+  (if (string-match ":" response)
+      (concat location (substring response (match-beginning 0)))
+    response))
+
 (defun wttrin--make-emoji-icon (emoji &optional foreground)
   "Create EMOJI string with optional font face and FOREGROUND color.
 Uses `wttrin-mode-line-emoji-font' when configured."
@@ -571,7 +579,9 @@ On failure with no cache, shows error placeholder."
                (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data)
                (if (wttrin--mode-line-valid-response-p trimmed-data)
                    (progn
-                     (setq wttrin--mode-line-cache (cons (float-time) trimmed-data))
+                     (setq wttrin--mode-line-cache
+                          (cons (float-time)
+                                (wttrin--replace-response-location trimmed-data location)))
                      (wttrin--mode-line-update-display))
                  (wttrin--debug-log "mode-line-fetch: Invalid response, keeping previous display")))
            ;; Network error / nil data
