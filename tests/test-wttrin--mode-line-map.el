@@ -1,6 +1,6 @@
 ;;; test-wttrin--mode-line-map.el --- Tests for wttrin--mode-line-map -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--mode-line-map keymap.

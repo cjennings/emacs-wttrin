@@ -1,6 +1,6 @@
 ;;; test-integration-debug.el --- Integration test with debug enabled -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Comprehensive integration test that:

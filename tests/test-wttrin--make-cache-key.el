@@ -1,6 +1,6 @@
 ;;; test-wttrin--make-cache-key.el --- Tests for wttrin--make-cache-key -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--make-cache-key function.

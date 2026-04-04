@@ -1,6 +1,6 @@
 ;;; test-debug-wttrin-show-raw.el --- Tests for debug-wttrin-show-raw -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

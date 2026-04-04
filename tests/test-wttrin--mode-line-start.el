@@ -1,6 +1,6 @@
 ;;; test-wttrin--mode-line-start.el --- Tests for wttrin--mode-line-start -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

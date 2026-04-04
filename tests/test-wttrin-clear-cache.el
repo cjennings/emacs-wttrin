@@ -1,6 +1,6 @@
 ;;; test-wttrin-clear-cache.el --- Tests for wttrin-clear-cache -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

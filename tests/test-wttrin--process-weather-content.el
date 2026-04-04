@@ -1,6 +1,6 @@
 ;;; test-wttrin--process-weather-content.el --- Tests for wttrin--process-weather-content -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--process-weather-content function.

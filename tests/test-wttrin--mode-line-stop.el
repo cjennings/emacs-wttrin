@@ -1,6 +1,6 @@
 ;;; test-wttrin--mode-line-stop.el --- Tests for wttrin--mode-line-stop -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

@@ -1,6 +1,6 @@
 ;;; test-wttrin-smoke.el --- Smoke tests for wttrin package loading -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Smoke tests to verify wttrin package loads correctly and core

@@ -1,6 +1,6 @@
 ;;; wttrin-debug.el --- Debug functions for wttrin.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 ;; Author: Craig Jennings <c@cjennings.net>
 ;; Keywords: debug weather wttrin
 

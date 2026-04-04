@@ -1,6 +1,6 @@
 ;;; test-wttrin-ansi-color-rendering.el --- Test ANSI color rendering -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

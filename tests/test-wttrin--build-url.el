@@ -1,6 +1,6 @@
 ;;; test-wttrin--build-url.el --- Tests for wttrin--build-url -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--build-url function.

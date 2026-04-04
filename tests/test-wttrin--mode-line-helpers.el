@@ -1,6 +1,6 @@
 ;;; test-wttrin--mode-line-helpers.el --- Tests for mode-line helper functions -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

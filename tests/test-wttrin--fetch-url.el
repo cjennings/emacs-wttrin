@@ -1,6 +1,6 @@
 ;;; test-wttrin--fetch-url.el --- Tests for wttrin--fetch-url -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--fetch-url function.

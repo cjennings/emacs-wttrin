@@ -1,6 +1,7 @@
 ;;; testutil-wttrin.el --- Test utilities for wttrin -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
+;; Author: Craig Jennings <c@cjennings.net>
 
 ;;; Commentary:
 

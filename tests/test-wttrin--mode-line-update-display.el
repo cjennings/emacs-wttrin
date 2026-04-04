@@ -1,6 +1,6 @@
 ;;; test-wttrin--mode-line-update-display.el --- Tests for mode-line display update -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--mode-line-update-display,

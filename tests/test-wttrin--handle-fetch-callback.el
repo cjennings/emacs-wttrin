@@ -1,6 +1,6 @@
 ;;; test-wttrin--handle-fetch-callback.el --- Tests for wttrin--handle-fetch-callback -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--handle-fetch-callback function.

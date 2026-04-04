@@ -1,6 +1,6 @@
 ;;; test-wttrin--extract-response-body.el --- Tests for wttrin--extract-response-body -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--extract-response-body function.

@@ -1,6 +1,6 @@
 ;;; test-wttrin--get-cache-entries-by-age.el --- Tests for cache entry sorting -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Tests for wttrin--get-cache-entries-by-age helper function.

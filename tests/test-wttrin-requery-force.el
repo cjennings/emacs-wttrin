@@ -1,6 +1,6 @@
 ;;; test-wttrin-requery-force.el --- Tests for wttrin-requery-force -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 

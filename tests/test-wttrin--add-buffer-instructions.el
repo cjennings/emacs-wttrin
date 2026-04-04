@@ -1,6 +1,6 @@
 ;;; test-wttrin--add-buffer-instructions.el --- Tests for wttrin--add-buffer-instructions -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 ;; Unit tests for wttrin--add-buffer-instructions function.
