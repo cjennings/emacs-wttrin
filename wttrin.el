@@ -305,6 +305,12 @@ CALLBACK is called with the weather data string when ready, or nil on error."
   (interactive)
   (quit-window t))
 
+(defun wttrin--requery-location (new-location)
+  "Kill current weather buffer and query NEW-LOCATION."
+  (when (get-buffer "*wttr.in*")
+    (kill-buffer "*wttr.in*"))
+  (wttrin-query new-location))
+
 (defun wttrin-requery ()
   "Kill buffer and requery wttrin."
   (interactive)
@@ -312,9 +318,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
                        "Location Name: " wttrin-default-locations nil nil
                        (when (= (length wttrin-default-locations) 1)
                          (car wttrin-default-locations)))))
-    (when (get-buffer "*wttr.in*")
-      (kill-buffer "*wttr.in*"))
-    (wttrin-query new-location)))
+    (wttrin--requery-location new-location)))
 
 (defvar wttrin-mode-map
   (let ((map (make-sparse-keymap)))
@@ -347,7 +351,7 @@ Returns the path to the saved file."
       (insert (format "Timestamp: %s\n" (format-time-string "%Y-%m-%d %H:%M:%S")))
       (insert (format "wttrin-unit-system: %s\n" wttrin-unit-system))
       (insert "\n--- Raw Response ---\n\n")
-      (insert raw-string))
+      (insert (or raw-string "(nil — no data received)")))
     (when (featurep 'wttrin-debug)
       (wttrin--debug-log "Debug data saved to: %s" filepath))
     filepath))
