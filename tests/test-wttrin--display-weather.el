@@ -200,5 +200,48 @@ Empty string does not match ERROR pattern, so it's processed as data."
                                       (buffer-name (current-buffer))))))
     (test-wttrin--display-weather-teardown)))
 
+;;; Location Casing
+
+(ert-deftest test-wttrin--display-weather-normal-location-uses-user-casing ()
+  "The 'Weather report:' header should show the user's original casing,
+not the lowercase version that wttr.in returns."
+  (test-wttrin--display-weather-setup)
+  (unwind-protect
+      (testutil-wttrin-with-clean-weather-buffer
+        (wttrin--display-weather "New Orleans, LA"
+                                 "Weather report: new orleans, la\n\nSunny 72°F")
+        (with-current-buffer "*wttr.in*"
+          (let ((case-fold-search nil))
+            (goto-char (point-min))
+            (should (search-forward "New Orleans, LA" nil t))
+            (goto-char (point-min))
+            (should-not (search-forward "new orleans, la" nil t)))))
+    (test-wttrin--display-weather-teardown)))
+
+(ert-deftest test-wttrin--display-weather-boundary-location-already-correct ()
+  "When the API returns correct casing, nothing should break."
+  (test-wttrin--display-weather-setup)
+  (unwind-protect
+      (testutil-wttrin-with-clean-weather-buffer
+        (wttrin--display-weather "Paris"
+                                 "Weather report: Paris\n\nSunny 22°C")
+        (with-current-buffer "*wttr.in*"
+          (goto-char (point-min))
+          (should (search-forward "Paris" nil t))))
+    (test-wttrin--display-weather-teardown)))
+
+(ert-deftest test-wttrin--display-weather-normal-weather-data-preserved ()
+  "Fixing the location casing should not alter the weather data itself."
+  (test-wttrin--display-weather-setup)
+  (unwind-protect
+      (testutil-wttrin-with-clean-weather-buffer
+        (wttrin--display-weather "Tokyo"
+                                 "Weather report: tokyo\n\nCloudy 18°C\nWind: 5 km/h")
+        (with-current-buffer "*wttr.in*"
+          (let ((contents (buffer-string)))
+            (should (string-match-p "Cloudy 18°C" contents))
+            (should (string-match-p "Wind: 5 km/h" contents)))))
+    (test-wttrin--display-weather-teardown)))
+
 (provide 'test-wttrin--display-weather)
 ;;; test-wttrin--display-weather.el ends here

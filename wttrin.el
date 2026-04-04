@@ -451,6 +451,10 @@ the generic error message."
         (require 'xterm-color)
         (setq-local xterm-color--state :char)
         (insert (wttrin--process-weather-content raw-string))
+        ;; wttr.in returns location in lowercase — replace with user's casing
+        (goto-char (point-min))
+        (when (re-search-forward "^Weather report: .*$" nil t)
+          (replace-match (concat "Weather report: " location-name)))
         (let ((staleness (wttrin--format-staleness-header location-name)))
           (when staleness
             (insert "\n" staleness)))
