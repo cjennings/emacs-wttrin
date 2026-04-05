@@ -1,0 +1,265 @@
+#+TITLE: Wttrin Test Suite
+#+AUTHOR: Craig Jennings
+#+DATE: 2026-04-04
+
+Quick reference for running and writing tests in the wttrin project.
+
+[[Quick start]] | [[Running tests]] | [[Writing tests]] | [[Test infrastructure]] | [[Key patterns]] | [[Important notes]] | [[Dependencies]] | [[Test inventory]]
+
+* Quick start
+
+#+begin_src sh
+# From the project root:
+make test                              # Run all tests (smoke -> unit -> integration)
+make test-unit                         # Run unit tests only
+make test-integration                  # Run integration tests only
+
+# More options:
+make test-file FILE=test-wttrin--build-url.el   # Run specific test file
+make test-name TEST=test-wttrin--build-url-*    # Run tests matching pattern
+#+end_src
+
+* Running tests
+
+All test logic lives in the root =Makefile=. Each test file runs in its own Emacs batch process for isolation.
+
+| Command | Purpose |
+|---------+---------|
+| =make test= | Run all tests (smoke -> unit -> integration) |
+| =make test-smoke= | Run smoke tests only |
+| =make test-unit= | Run unit tests only |
+| =make test-integration= | Run integration tests only (=test-integration-*.el=) |
+| =make test-file FILE=test-foo.el= | Run a specific test file |
+| =make test-name TEST=pattern= | Run tests matching an ERT name pattern |
+| =make validate-parens= | Check for unbalanced parentheses |
+| =make validate= | Load wttrin.el to verify it compiles |
+| =make compile= | Byte-compile wttrin.el |
+| =make lint= | Run all linters (checkdoc, package-lint, elisp-lint) |
+| =make clean= | Remove test artifacts and compiled files |
+| =make help= | Show all available commands |
+
+Dependencies are auto-detected from =~/.emacs.d/elpa/=. Override the Emacs binary with the =EMACS= environment variable.
+
+** Examples
+
+#+begin_src sh
+# Run one file
+make test-file FILE=test-wttrin--build-url.el
+
+# Run tests matching a pattern
+make test-name TEST="test-wttrin--build-url-*"
+
+# Use a specific Emacs version
+make EMACS=emacs29 test
+#+end_src
+
+* Writing tests
+
+** File structure
+
+Every test file requires =ert=, =wttrin=, and =testutil-wttrin=:
+
+#+begin_src elisp
+;;; test-wttrin--FEATURE.el --- Tests for FEATURE -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2025-2026 Craig Jennings
+;; Author: Craig Jennings <c@cjennings.net>
+;; License: GPL-3.0-or-later
+
+;;; Commentary:
+;; Unit tests for FEATURE.
+
+;;; Code:
+
+(require 'ert)
+(require 'wttrin)
+(require 'testutil-wttrin)
+
+;;; Setup and Teardown
+
+(defun test-wttrin--FEATURE-setup ()
+  "Setup for FEATURE tests."
+  (testutil-wttrin-setup))
+
+(defun test-wttrin--FEATURE-teardown ()
+  "Teardown for FEATURE tests."
+  (testutil-wttrin-teardown))
+
+;;; Normal Cases
+
+(ert-deftest test-wttrin--FEATURE-normal-description ()
+  "Descriptive docstring."
+  (test-wttrin--FEATURE-setup)
+  (unwind-protect
+      (should (equal expected (function-under-test input)))
+    (test-wttrin--FEATURE-teardown)))
+
+;;; Boundary Cases
+;;; Error Cases
+
+(provide 'test-wttrin--FEATURE)
+;;; test-wttrin--FEATURE.el ends here
+#+end_src
+
+** Naming convention
+
+#+begin_example
+test-wttrin--FUNCTION-CATEGORY-description
+              |         |
+              |         +-- normal, boundary, error
+              +------------ function or module name
+#+end_example
+
+Examples:
+- =test-wttrin--build-url-normal-simple-city-returns-correct-url=
+- =test-wttrin--make-cache-key-boundary-empty-location=
+- =test-wttrin--validate-weather-data-error-nil-response=
+
+** Test categories
+
+Tests are split into three categories:
+
+- *Normal*: Standard inputs, expected use cases, common workflows
+- *Boundary*: Empty inputs, nil values, single-element results, unicode, max values
+- *Error*: Invalid inputs, malformed data, network failures, missing parameters
+
+* Test infrastructure
+
+** testutil-wttrin.el
+
+Shared utilities loaded by all test files. Provides fixtures, cache helpers, mocking macros, and setup/teardown functions.
+
+*** Fixtures
+
+| Constant | Content |
+|----------+---------|
+| =testutil-wttrin-sample-weather-response= | Parsed weather output (Paris, no ANSI) |
+| =testutil-wttrin-sample-error-response= | wttr.in error string |
+| =testutil-wttrin-sample-ansi-response= | Weather with ANSI color codes |
+| =testutil-wttrin-sample-full-weather= | Full weather display (Berkeley) |
+
+Additional fixture files live in =tests/fixtures/=.
+
+*** Cache helpers
+
+| Function | Purpose |
+|----------+---------|
+| =testutil-wttrin-clear-cache= | Clear the wttrin cache hash table |
+| =testutil-wttrin-add-to-cache LOCATION DATA &optional AGE-SECONDS= | Insert data into cache, optionally aged |
+| =testutil-wttrin-cache-size= | Return number of cache entries |
+| =testutil-wttrin-set-mode-line-cache DATA &optional AGE-SECONDS= | Set mode-line cache with optional age |
+
+*** Config override macros
+
+#+begin_src elisp
+;; Override unit system for a test
+(testutil-wttrin-with-unit-system "m"
+  (should (string-match "\\?m" (wttrin--build-url "Paris"))))
+
+;; Override refresh interval
+(testutil-wttrin-with-refresh-interval 60
+  (should (= wttrin-refresh-interval 60)))
+
+;; Override max cache entries
+(testutil-wttrin-with-cache-max 5
+  (should (= wttrin-cache-max-entries 5)))
+#+end_src
+
+*** Buffer management
+
+#+begin_src elisp
+;; Clean *wttr.in* buffer with auto-cleanup
+(testutil-wttrin-with-clean-weather-buffer
+  (wttrin--display-weather "Paris" weather-data)
+  (should (get-buffer "*wttr.in*")))
+#+end_src
+
+*** HTTP mocking
+
+#+begin_src elisp
+;; Mock url-retrieve to return a canned response
+(testutil-wttrin-mock-http-response "Weather report: Paris\n..."
+  (wttrin--fetch-url "https://wttr.in/Paris"
+    (lambda (data &optional error-info)
+      (should (stringp data)))))
+#+end_src
+
+*** Setup and teardown
+
+#+begin_src elisp
+(testutil-wttrin-setup)    ; clears cache, resets wttrin--force-refresh
+(testutil-wttrin-teardown) ; same cleanup for test end
+#+end_src
+
+* Key patterns
+
+** Mocking external dependencies
+
+#+begin_src elisp
+(cl-letf (((symbol-function 'url-retrieve)
+           (lambda (url callback)
+             (with-temp-buffer
+               (insert "HTTP/1.1 200 OK\n\n" response-body)
+               (funcall callback nil)))))
+  ;; url-retrieve is mocked only within this scope
+  )
+#+end_src
+
+** Mocking time
+
+#+begin_src elisp
+(cl-letf (((symbol-function 'float-time) (lambda () 1000.0)))
+  ;; float-time returns a fixed value for deterministic age computation
+  )
+#+end_src
+
+** Overriding config
+
+#+begin_src elisp
+(let ((wttrin-unit-system "m")
+      (wttrin-default-locations '("Paris" "London")))
+  ;; config is scoped to this let block
+  )
+#+end_src
+
+* Important notes
+
+1. *Load path*: The Makefile auto-adds project root and =tests/= to the load path, and initializes MELPA packages
+2. *Test isolation*: Each test file runs in its own Emacs process -- no cross-file state leakage
+3. *Cache cleanup*: Always call =testutil-wttrin-setup= / =testutil-wttrin-teardown= to avoid cache bleed between tests
+4. *Mock warnings*: "Redefining 'url-retrieve' might break native compilation" is normal and expected
+5. *ANSI codes*: Use =testutil-wttrin-sample-ansi-response= when testing color rendering; use plain fixtures for logic tests
+6. *Debug tests*: Set =wttrin-debug= to non-nil before requiring =wttrin-debug= in debug test files
+
+* Dependencies
+
+Required packages (auto-detected by Makefile):
+- =xterm-color= (ANSI color rendering)
+
+Use =make install-deps= to install. Override the ELPA directory with the =ELPA_DIR= environment variable.
+
+* Test inventory
+
+334 tests across 38 files (as of 2026-04-04).
+
+Top files by count:
+| File | Tests |
+|------+-------|
+| test-wttrin--mode-line-update-display.el | 36 |
+| test-wttrin--handle-fetch-callback.el | 16 |
+| test-wttrin--extract-response-body.el | 16 |
+| test-wttrin-smoke.el | 15 |
+| test-wttrin--validate-weather-data.el | 13 |
+| test-wttrin--display-weather.el | 13 |
+| test-wttrin--process-weather-content.el | 12 |
+| test-wttrin--cleanup-cache-if-needed.el | 12 |
+| test-wttrin--build-url.el | 12 |
+| test-wttrin--make-cache-key.el | 11 |
+| test-wttrin-error-propagation.el | 11 |
+| test-wttrin--mode-line-tooltip.el | 10 |
+| test-wttrin--mode-line-helpers.el | 10 |
+| test-wttrin--get-cached-or-fetch.el | 10 |
+| test-wttrin-ansi-color-rendering.el | 10 |
+| test-wttrin--add-buffer-instructions.el | 10 |
+
+Run =make test= from the project root for the full suite.
