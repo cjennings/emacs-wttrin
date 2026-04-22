@@ -233,6 +233,25 @@ If a refresh fails, the emoji dims to gray and the tooltip tells you what went w
 
 *Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
 
+*** Setting the Favorite Location from IP Geolocation
+If you don't want to type your city by hand, wttrin can detect it for you:
+
+#+begin_src emacs-lisp
+  M-x wttrin-set-location-from-geolocation
+#+end_src
+
+This looks up your city via IP geolocation, shows the detected location, and sets =wttrin-favorite-location= after you confirm. To make the setting persist across Emacs sessions, run =M-x customize-save-variable RET wttrin-favorite-location RET=, or add =(setq wttrin-favorite-location "Your City, State")= to your init file.
+
+The default lookup provider is =ipapi.co=. Two alternatives ship with the package, both free and key-less:
+
+#+begin_src emacs-lisp
+  (setq wttrin-geolocation-provider 'ipapi)    ;; ipapi.co (default, 30k/month)
+  (setq wttrin-geolocation-provider 'ipinfo)   ;; ipinfo.io (50k/month)
+  (setq wttrin-geolocation-provider 'ipwhois)  ;; ipwho.is (10k/month)
+#+end_src
+
+*Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. The confirmation prompt lets you reject an inaccurate result. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
+
 ** Debugging and Troubleshooting
 If something isn't working, debug mode logs every fetch, every display update, and every error.
 

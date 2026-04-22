@@ -39,6 +39,10 @@
 ;; Declare xterm-color functions (loaded on-demand)
 (declare-function xterm-color-filter "xterm-color" (string))
 
+;; Declare geolocation entry point (loaded on-demand by
+;; `wttrin-set-location-from-geolocation')
+(declare-function wttrin-geolocation-detect "wttrin-geolocation" (callback))
+
 ;; No-op stubs for debug functions (overridden when wttrin-debug.el is loaded)
 (defun wttrin--debug-mode-line-info ()
   "No-op stub.  Replaced by `wttrin-debug' when debug mode is active."
@@ -538,6 +542,36 @@ This creates headroom to avoid frequent cleanups."
   (interactive)
   (clrhash wttrin--cache)
   (message "Weather cache cleared"))
+
+;;;###autoload
+(defun wttrin-set-location-from-geolocation ()
+  "Detect your location via IP geolocation and set it as the favorite.
+Uses the provider named by `wttrin-geolocation-provider' to fetch
+\"City, Region\", asks for confirmation, and on yes assigns the
+result to `wttrin-favorite-location' for this session.
+
+To persist the setting across Emacs sessions, either run
+\\[customize-save-variable] on `wttrin-favorite-location', or add
+\(setq wttrin-favorite-location ...\) to your init file.
+
+IP-based geolocation can be wrong behind a VPN or a mobile hotspot.
+The confirmation prompt shows the detected location so you can
+reject inaccurate results."
+  (interactive)
+  (require 'wttrin-geolocation)
+  (message "Detecting location...")
+  (wttrin-geolocation-detect
+   (lambda (location)
+     (cond
+      ((null location)
+       (message "Could not detect location (network or provider error)"))
+      ((yes-or-no-p (format "Detected location: %s. Set as favorite? "
+                            location))
+       (setq wttrin-favorite-location location)
+       (message "Set wttrin-favorite-location to: %s. Run M-x customize-save-variable to persist."
+                location))
+      (t
+       (message "Location detection cancelled"))))))
 
 (defvar-local wttrin--current-location nil
   "Current location displayed in this weather buffer.")
