@@ -597,12 +597,15 @@ user's original casing so tooltips display what the user expects."
 
 (defun wttrin--make-emoji-icon (emoji &optional foreground)
   "Create EMOJI string with optional font face and FOREGROUND color.
-Uses `wttrin-mode-line-emoji-font' when configured."
+Uses `wttrin-mode-line-emoji-font' when configured.
+Omits `:foreground' from the face plist when FOREGROUND is nil — a literal
+`:foreground nil' entry triggers \"Invalid face attribute\" warnings on every
+redisplay."
   (if wttrin-mode-line-emoji-font
       (propertize emoji
-                  'face (list :family wttrin-mode-line-emoji-font
-                              :height 1.0
-                              :foreground foreground))
+                  'face `(:family ,wttrin-mode-line-emoji-font
+                          :height 1.0
+                          ,@(when foreground (list :foreground foreground))))
     (if foreground
         (propertize emoji 'face (list :foreground foreground))
       emoji)))
