@@ -197,6 +197,26 @@ Set this to t BEFORE loading wttrin, typically in your init file:
 (defvar wttrin--force-refresh nil
   "When non-nil, bypass cache on next fetch.")
 
+;;; Mode-line state and update flow
+;;
+;; The state lives in four variables (defined below): the cache as source
+;; of truth, the rendered string for `global-mode-string', a stale-render
+;; flag, and the refresh timer.
+;;
+;; Normal update path:
+;;   `wttrin--mode-line-fetch-weather' updates `wttrin--mode-line-cache'
+;;   and then calls `wttrin--mode-line-update-display', which reads the
+;;   cache, decides staleness via `wttrin--mode-line-stale-p', and writes
+;;   both `wttrin-mode-line-string' and `wttrin--mode-line-rendered-stale'.
+;;
+;; Tooltip-driven re-render:
+;;   `wttrin--mode-line-tooltip' fires on every mouse hover.  It
+;;   re-evaluates staleness against the current cache age and, if that
+;;   flips relative to `wttrin--mode-line-rendered-stale', calls
+;;   `wttrin--mode-line-update-display' to refresh dimming.  This keeps
+;;   the tooltip age and emoji color in sync when a fetch has been
+;;   failing for a while.
+
 (defvar wttrin-mode-line-string nil
   "Mode-line string showing weather for favorite location.")
 ;; Emacs strips text properties from mode-line strings unless the
