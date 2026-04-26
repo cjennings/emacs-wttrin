@@ -171,5 +171,45 @@ distinguish a missing key from a present key bound to nil."
   "Nil cache-entry returns nil with no signal."
   (should-not (wttrin--mode-line-stale-p nil)))
 
+;;; --------------------------------------------------------------------------
+;;; wttrin--mode-line-extract-emoji
+;;; --------------------------------------------------------------------------
+
+;;; Normal Cases
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-normal-typical-response ()
+  "Typical response \"Location: emoji rest\" returns the emoji."
+  (should (equal (wttrin--mode-line-extract-emoji "Paris: ☀ +72°F Clear")
+                 "☀")))
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-normal-different-emoji ()
+  "Different emoji is returned correctly (no hardcoded match)."
+  (should (equal (wttrin--mode-line-extract-emoji "London: ⛅ +15°C Cloudy")
+                 "⛅")))
+
+;;; Boundary Cases
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-boundary-no-whitespace-after-colon ()
+  "Colon with no whitespace before the emoji still extracts."
+  (should (equal (wttrin--mode-line-extract-emoji "X:Y rest")
+                 "Y")))
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-boundary-multiple-whitespace ()
+  "Multiple whitespace chars between colon and emoji are skipped."
+  (should (equal (wttrin--mode-line-extract-emoji "X:   Z rest")
+                 "Z")))
+
+;;; Error Cases
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-error-no-colon ()
+  "String with no colon returns the placeholder \"?\"."
+  (should (equal (wttrin--mode-line-extract-emoji "no colon here")
+                 "?")))
+
+(ert-deftest test-wttrin--mode-line-extract-emoji-error-empty-string ()
+  "Empty string returns the placeholder \"?\"."
+  (should (equal (wttrin--mode-line-extract-emoji "")
+                 "?")))
+
 (provide 'test-wttrin--mode-line-helpers)
 ;;; test-wttrin--mode-line-helpers.el ends here

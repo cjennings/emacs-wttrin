@@ -676,6 +676,15 @@ On failure with no cache, shows error placeholder."
              ;; No cache at all — show error placeholder
              (wttrin--mode-line-update-placeholder-error))))))))
 
+(defun wttrin--mode-line-extract-emoji (weather-string)
+  "Extract the emoji character from WEATHER-STRING.
+The expected format is \"Location: emoji temp conditions\".  Returns
+the first non-whitespace character after the colon, or \"?\" when
+WEATHER-STRING contains no colon."
+  (if (string-match ":\\s-*\\(.\\)" weather-string)
+      (match-string 1 weather-string)
+    "?"))
+
 (defun wttrin--mode-line-stale-p (cache-entry)
   "Return non-nil if CACHE-ENTRY is stale.
 Stale means age greater than 2 × `wttrin-mode-line-refresh-interval'.
@@ -715,10 +724,7 @@ shows staleness info in tooltip."
     (let* ((weather-string (cdr wttrin--mode-line-cache))
            (stale-p (wttrin--mode-line-stale-p wttrin--mode-line-cache)))
       (wttrin--debug-log "mode-line-display: Updating from cache, stale=%s" stale-p)
-      ;; Response format is "Location: ☀️ +72°F Clear" — grab first char after colon
-      (let ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)
-                       (match-string 1 weather-string)
-                     "?")))
+      (let ((emoji (wttrin--mode-line-extract-emoji weather-string)))
         (wttrin--debug-log "mode-line-display: Extracted emoji = %S, stale = %s"
                            emoji stale-p)
         (setq wttrin--mode-line-rendered-stale stale-p)
