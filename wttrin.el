@@ -676,6 +676,16 @@ On failure with no cache, shows error placeholder."
              ;; No cache at all — show error placeholder
              (wttrin--mode-line-update-placeholder-error))))))))
 
+(defun wttrin--mode-line-stale-p (cache-entry)
+  "Return non-nil if CACHE-ENTRY is stale.
+Stale means age greater than 2 × `wttrin-mode-line-refresh-interval'.
+CACHE-ENTRY is a (TIMESTAMP . WEATHER-STRING) cons or nil.  A nil
+entry returns nil so callers can pass `wttrin--mode-line-cache' directly
+without a separate guard."
+  (when cache-entry
+    (let ((age (- (float-time) (car cache-entry))))
+      (> age (* 2 wttrin-mode-line-refresh-interval)))))
+
 (defun wttrin--mode-line-tooltip (&optional _window _object _pos)
   "Compute tooltip text from `wttrin--mode-line-cache'.
 Calculates age at call time so the tooltip is always current.
@@ -686,7 +696,7 @@ Optional arguments are ignored (required by `help-echo' function protocol)."
     (let* ((timestamp (car wttrin--mode-line-cache))
            (weather-string (cdr wttrin--mode-line-cache))
            (age (- (float-time) timestamp))
-           (stale-p (> age (* 2 wttrin-mode-line-refresh-interval)))
+           (stale-p (wttrin--mode-line-stale-p wttrin--mode-line-cache))
            (age-str (wttrin--format-age age)))
       ;; Re-render emoji if staleness state has changed
       (unless (eq stale-p wttrin--mode-line-rendered-stale)
@@ -702,10 +712,8 @@ Reads cached weather data, computes age, and sets the mode-line string.
 If data is stale (age > 2x refresh interval), dims the emoji and
 shows staleness info in tooltip."
   (when wttrin--mode-line-cache
-    (let* ((timestamp (car wttrin--mode-line-cache))
-           (weather-string (cdr wttrin--mode-line-cache))
-           (age (- (float-time) timestamp))
-           (stale-p (> age (* 2 wttrin-mode-line-refresh-interval))))
+    (let* ((weather-string (cdr wttrin--mode-line-cache))
+           (stale-p (wttrin--mode-line-stale-p wttrin--mode-line-cache)))
       (wttrin--debug-log "mode-line-display: Updating from cache, stale=%s" stale-p)
       ;; Response format is "Location: ☀️ +72°F Clear" — grab first char after colon
       (let ((emoji (if (string-match ":\\s-*\\(.\\)" weather-string)

@@ -135,5 +135,41 @@ distinguish a missing key from a present key bound to nil."
                        'mode-line-highlight)))
     (test-wttrin--mode-line-helpers-teardown)))
 
+;;; --------------------------------------------------------------------------
+;;; wttrin--mode-line-stale-p
+;;; --------------------------------------------------------------------------
+
+;;; Normal Cases
+
+(ert-deftest test-wttrin--mode-line-stale-p-normal-fresh-cache-returns-nil ()
+  "Cache entry well within the refresh window is not stale."
+  (let ((wttrin-mode-line-refresh-interval 100))
+    (let ((entry (cons (- (float-time) 50) "data")))
+      (should-not (wttrin--mode-line-stale-p entry)))))
+
+(ert-deftest test-wttrin--mode-line-stale-p-normal-stale-cache-returns-t ()
+  "Cache entry older than 2× refresh-interval is stale."
+  (let ((wttrin-mode-line-refresh-interval 100))
+    (let ((entry (cons (- (float-time) 500) "data")))
+      (should (wttrin--mode-line-stale-p entry)))))
+
+;;; Boundary Cases
+
+(ert-deftest test-wttrin--mode-line-stale-p-boundary-just-below-threshold ()
+  "Age 1s below the 2× threshold is not stale (strict >)."
+  (let ((wttrin-mode-line-refresh-interval 100))
+    (let ((entry (cons (- (float-time) 199) "data")))
+      (should-not (wttrin--mode-line-stale-p entry)))))
+
+(ert-deftest test-wttrin--mode-line-stale-p-boundary-just-past-threshold ()
+  "Age 1s past the 2× threshold is stale."
+  (let ((wttrin-mode-line-refresh-interval 100))
+    (let ((entry (cons (- (float-time) 201) "data")))
+      (should (wttrin--mode-line-stale-p entry)))))
+
+(ert-deftest test-wttrin--mode-line-stale-p-boundary-nil-cache-returns-nil ()
+  "Nil cache-entry returns nil with no signal."
+  (should-not (wttrin--mode-line-stale-p nil)))
+
 (provide 'test-wttrin--mode-line-helpers)
 ;;; test-wttrin--mode-line-helpers.el ends here
