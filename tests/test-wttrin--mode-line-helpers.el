@@ -70,6 +70,17 @@
       ;; Without font or foreground, should be plain string
       (should (equal result "☀")))))
 
+(ert-deftest test-wttrin--make-emoji-icon-boundary-nil-foreground-with-font ()
+  "With font set and nil foreground, the face plist must omit :foreground entirely.
+A literal `:foreground nil' entry triggers \"Invalid face attribute\" warnings on
+every redisplay.  `plist-member' (not `plist-get') is required: `plist-get' can't
+distinguish a missing key from a present key bound to nil."
+  (let ((wttrin-mode-line-emoji-font "Noto Color Emoji"))
+    (let* ((result (wttrin--make-emoji-icon "☀" nil))
+           (face (get-text-property 0 'face result)))
+      (should (equal (plist-get face :family) "Noto Color Emoji"))
+      (should-not (plist-member face :foreground)))))
+
 ;;; --------------------------------------------------------------------------
 ;;; wttrin--set-mode-line-string
 ;;; --------------------------------------------------------------------------
