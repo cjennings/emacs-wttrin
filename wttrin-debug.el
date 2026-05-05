@@ -80,20 +80,18 @@ Raw weather data will be saved to timestamped files for bug reports."
   "Display detailed mode-line information for the wttrin buffer.
 This is useful for diagnosing why the mode-line lighter isn't appearing."
   (interactive)
-  (if-let ((buf (get-buffer "*wttr.in*")))
+  (let ((buf (get-buffer "*wttr.in*")))
+    (if (not buf)
+        (message "No *wttr.in* buffer exists. Run M-x wttrin first.")
       (with-current-buffer buf
-        (let* ((has-custom-modeline (boundp 'cj/modeline-major-mode))
-               (formatted-mode (when has-custom-modeline
-                                 (format-mode-line mode-name))))
+        (let ((formatted-mode (format-mode-line mode-name)))
           (with-output-to-temp-buffer "*wttrin-mode-debug*"
             (princ (format "=== Wttrin Mode-Line Debug Info ===\n\n"))
             (princ (format "Buffer: %s\n" (buffer-name)))
             (princ (format "Major mode: %s\n" major-mode))
             (princ (format "mode-name variable: %S\n" mode-name))
             (princ (format "mode-name type: %s\n" (type-of mode-name)))
-            (princ (format "\nCustom modeline detected: %s\n" has-custom-modeline))
-            (when has-custom-modeline
-              (princ (format "format-mode-line result: %S\n" formatted-mode)))
+            (princ (format "format-mode-line result: %S\n" formatted-mode))
             (princ (format "\nmode-line-format first 5 elements:\n"))
             (let ((i 0))
               (dolist (elem mode-line-format)
@@ -103,8 +101,7 @@ This is useful for diagnosing why the mode-line lighter isn't appearing."
             (princ (format "\nSpecial-mode parent: %s\n"
                           (get 'wttrin-mode 'derived-mode-parent)))
             (princ (format "Is special-mode active: %s\n"
-                          (derived-mode-p 'special-mode))))))
-    (message "No *wttr.in* buffer exists. Run M-x wttrin first.")))
+                          (derived-mode-p 'special-mode)))))))))
 
 (defun wttrin--debug-mode-line-info ()
   "Auto-generate mode-line diagnostic information.
