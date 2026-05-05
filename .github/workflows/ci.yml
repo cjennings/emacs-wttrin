@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Emacs ${{ matrix.emacs-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version:
+          - '26.3'
+          - '27.2'
+          - '28.2'
+          - '29.4'
+          - 'snapshot'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: jcs090218/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Set up Eask
+        uses: emacs-eask/setup-eask@master
+        with:
+          version: 'snapshot'
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Run tests
+        run: make test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: jcs090218/setup-emacs@master
+        with:
+          version: '29.4'
+
+      - name: Set up Eask
+        uses: emacs-eask/setup-eask@master
+        with:
+          version: 'snapshot'
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Run linters
+        run: make lint
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: jcs090218/setup-emacs@master
+        with:
+          version: '29.4'
+
+      - name: Set up Eask
+        uses: emacs-eask/setup-eask@master
+        with:
+          version: 'snapshot'
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Run coverage
+        run: make coverage
+
+      - name: Print coverage summary
+        run: python3 scripts/coverage-summary.py
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-simplecov
+          path: .coverage/simplecov.json
+          if-no-files-found: error
+          retention-days: 30
