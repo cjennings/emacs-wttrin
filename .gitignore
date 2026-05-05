@@ -1,3 +1,7 @@
 /todo.org
 /.ai/
 /.stignore
+/.eask/
+/.coverage/
+/dist/
+*.elc
