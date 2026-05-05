@@ -280,22 +280,29 @@ compile:
 	@echo "[v] Compilation complete"
 
 lint:
-	@echo "Running linters on $(MAIN_FILE)..."
-	@$(EASK_EMACS) \
-		--eval "(progn \
-			(require 'checkdoc nil t) \
-			(require 'package-lint nil t) \
-			(require 'elisp-lint nil t) \
-			(find-file \"$(MAIN_FILE)\") \
-			(when (featurep 'checkdoc) \
-				(message \"-- checkdoc --\") \
-				(checkdoc-current-buffer t)) \
-			(when (featurep 'package-lint) \
-				(message \"-- package-lint --\") \
-				(package-lint-current-buffer)) \
-			(when (featurep 'elisp-lint) \
-				(message \"-- elisp-lint --\") \
-				(elisp-lint-file \"$(MAIN_FILE)\")))" || true
+	@echo "Running linters on source files..."
+	@for src in $(SOURCE_FILES); do \
+		echo "  Linting $$src..."; \
+		$(EASK_EMACS) \
+			--eval "(let ((src \"$$src\") (main \"$(MAIN_FILE)\")) \
+				(require 'checkdoc nil t) \
+				(require 'package-lint nil t) \
+				(require 'elisp-lint nil t) \
+				(find-file src) \
+				(when (featurep 'checkdoc) \
+					(message \"-- checkdoc on %s --\" src) \
+					(checkdoc-current-buffer t)) \
+				(when (and (featurep 'package-lint) (string= src main)) \
+					(message \"-- package-lint on %s --\" src) \
+					(package-lint-current-buffer)) \
+				(when (featurep 'elisp-lint) \
+					(message \"-- elisp-lint on %s --\" src) \
+					(let ((elisp-lint-ignored-validators \
+							(if (string= src main) \
+								elisp-lint-ignored-validators \
+								(cons \"package-lint\" elisp-lint-ignored-validators)))) \
+						(elisp-lint-file src))))" || true; \
+	done
 	@echo "[i] Lint complete (informational)"
 
 # ============================================================================
