@@ -92,3 +92,12 @@ jobs:
           path: .coverage/simplecov.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Send coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        continue-on-error: true
+        with:
+          file: .coverage/simplecov.json
+          format: simplecov
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
