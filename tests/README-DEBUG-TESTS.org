@@ -50,7 +50,7 @@ The integration tests demonstrate:
 ** Or Enable Later
 
 #+begin_src emacs-lisp
-M-x debug-wttrin-enable
+M-x wttrin-debug-enable
 #+end_src
 
 ** View Debug Log

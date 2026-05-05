@@ -16,13 +16,16 @@
 ;;   (require 'wttrin)
 ;;
 ;; Available debug functions:
-;; - `debug-wttrin-show-raw' - View raw weather data with line numbers
-;; - `debug-wttrin-mode-line' - Diagnose mode-line lighter issues
+;; - `wttrin-debug-show-raw' - View raw weather data with line numbers
+;; - `wttrin-debug-mode-line' - Diagnose mode-line lighter issues
 ;; - `wttrin--debug-mode-line-info' - Auto-called when wttrin runs (if debug enabled)
 ;;
 ;; Interactive commands:
-;; - M-x debug-wttrin-enable  - Enable debug mode
-;; - M-x debug-wttrin-disable - Disable debug mode
+;; - M-x wttrin-debug-enable  - Enable debug mode
+;; - M-x wttrin-debug-disable - Disable debug mode
+;;
+;; Earlier versions exposed these as `debug-wttrin-*'.  Those names remain
+;; available as obsolete aliases and will be removed in a future release.
 ;;
 ;; When debug mode is enabled, raw weather data is automatically saved to
 ;; timestamped files in `temporary-file-directory' for bug reports.
@@ -37,7 +40,7 @@
 (declare-function wttrin--get-cached-or-fetch "wttrin")
 
 ;;;###autoload
-(defun debug-wttrin-show-raw (location)
+(defun wttrin-debug-show-raw (location)
   "Fetch and display raw wttr.in data for LOCATION with line numbers.
 This is useful for debugging header parsing issues.
 Always fetches fresh data from the API, bypassing cache."
@@ -61,7 +64,7 @@ Always fetches fresh data from the API, bypassing cache."
        (switch-to-buffer (current-buffer)))))))
 
 ;;;###autoload
-(defun debug-wttrin-enable ()
+(defun wttrin-debug-enable ()
   "Enable wttrin debug mode.
 Raw weather data will be saved to timestamped files for bug reports."
   (interactive)
@@ -69,14 +72,14 @@ Raw weather data will be saved to timestamped files for bug reports."
   (message "Wttrin debug mode enabled. Raw data will be saved to: %s" temporary-file-directory))
 
 ;;;###autoload
-(defun debug-wttrin-disable ()
+(defun wttrin-debug-disable ()
   "Disable wttrin debug mode."
   (interactive)
   (setq wttrin-debug nil)
   (message "Wttrin debug mode disabled"))
 
 ;;;###autoload
-(defun debug-wttrin-mode-line ()
+(defun wttrin-debug-mode-line ()
   "Display detailed mode-line information for the wttrin buffer.
 This is useful for diagnosing why the mode-line lighter isn't appearing."
   (interactive)
@@ -107,7 +110,7 @@ This is useful for diagnosing why the mode-line lighter isn't appearing."
   "Auto-generate mode-line diagnostic information.
 Called after every weather buffer display.  A no-op stub in wttrin.el
 is overridden by this implementation when the debug module is loaded."
-  (debug-wttrin-mode-line))
+  (wttrin-debug-mode-line))
 
 (defvar wttrin--debug-log nil
   "List of debug log entries. Each entry is (timestamp . message).")
@@ -142,6 +145,19 @@ Messages are stored in `wttrin--debug-log' for later review."
       (insert "(No log entries yet)\n"))
     (goto-char (point-min))
     (display-buffer (current-buffer))))
+
+;;; Obsolete aliases for the old `debug-wttrin-*' names.
+;; Kept so existing keybindings and configurations keep working; emit
+;; a byte-compile / runtime obsolescence warning to nudge migration.
+
+(define-obsolete-function-alias 'debug-wttrin-show-raw
+  'wttrin-debug-show-raw "0.4.0")
+(define-obsolete-function-alias 'debug-wttrin-enable
+  'wttrin-debug-enable "0.4.0")
+(define-obsolete-function-alias 'debug-wttrin-disable
+  'wttrin-debug-disable "0.4.0")
+(define-obsolete-function-alias 'debug-wttrin-mode-line
+  'wttrin-debug-mode-line "0.4.0")
 
 (provide 'wttrin-debug)
 ;;; wttrin-debug.el ends here

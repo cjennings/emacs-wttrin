@@ -1,10 +1,10 @@
-;;; test-debug-wttrin-enable.el --- Tests for debug-wttrin-enable -*- lexical-binding: t; -*-
+;;; test-wttrin-debug-enable.el --- Tests for wttrin-debug-enable -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025-2026 Craig Jennings
 
 ;;; Commentary:
 
-;; Unit tests for debug-wttrin-enable.  Verifies the interactive command
+;; Unit tests for wttrin-debug-enable.  Verifies the interactive command
 ;; flips `wttrin-debug' to t and is idempotent when already enabled.
 
 ;;; Code:
@@ -19,25 +19,25 @@
 
 ;;; Normal Cases
 
-(ert-deftest test-debug-wttrin-enable-normal-flips-from-nil-to-t ()
+(ert-deftest test-wttrin-debug-enable-normal-flips-from-nil-to-t ()
   "Calling enable when wttrin-debug is nil sets it to t."
   (let ((wttrin-debug nil))
-    (debug-wttrin-enable)
+    (wttrin-debug-enable)
     (should (eq wttrin-debug t))))
 
-(ert-deftest test-debug-wttrin-enable-normal-idempotent-when-already-enabled ()
+(ert-deftest test-wttrin-debug-enable-normal-idempotent-when-already-enabled ()
   "Calling enable when wttrin-debug is already t leaves it t."
   (let ((wttrin-debug t))
-    (debug-wttrin-enable)
+    (wttrin-debug-enable)
     (should (eq wttrin-debug t))))
 
 ;;; Boundary Cases
 
-(ert-deftest test-debug-wttrin-enable-boundary-overrides-non-boolean-truthy-value ()
+(ert-deftest test-wttrin-debug-enable-boundary-overrides-non-boolean-truthy-value ()
   "Calling enable replaces a non-boolean truthy value with t."
   (let ((wttrin-debug 'verbose))
-    (debug-wttrin-enable)
+    (wttrin-debug-enable)
     (should (eq wttrin-debug t))))
 
-(provide 'test-debug-wttrin-enable)
-;;; test-debug-wttrin-enable.el ends here
+(provide 'test-wttrin-debug-enable)
+;;; test-wttrin-debug-enable.el ends here
