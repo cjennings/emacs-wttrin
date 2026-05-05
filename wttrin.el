@@ -96,6 +96,29 @@ units (default)."
   :group 'wttrin
   :type 'string)
 
+(defcustom wttrin-display-options nil
+  "wttr.in display option flags concatenated as a string.
+Each character is a wttr.in flag, as documented at https://wttr.in/:help.
+Common options:
+
+  0    only current weather (no forecast)
+  1    current weather + today's forecast
+  2    current weather + today's + tomorrow's forecast
+  d    restrict output to standard console font glyphs
+  F    do not show the \"Follow\" line
+  n    narrow version (only day and night)
+  q    quiet version (no \"Weather report\" text)
+  Q    superquiet version (no \"Weather report\", no city name)
+
+Example: \"0Fq\" gives current weather only with no Follow line and no
+header.  Default nil means no extra options.
+
+Avoid \"A\" and \"T\" — wttrin manages ANSI output internally so the
+xterm-color rendering produces the colored glyphs."
+  :group 'wttrin
+  :type '(choice (const :tag "None" nil)
+                 (string :tag "Options")))
+
 
 (define-obsolete-variable-alias 'wttrin-cache-ttl 'wttrin-refresh-interval "0.3.0")
 
@@ -271,7 +294,8 @@ Returns \"just now\" for <60s, \"X minutes ago\", \"X hours ago\", or \"X days a
   (concat "https://wttr.in/"
           (url-hexify-string query)
           (wttrin-additional-url-params)
-          "A"))
+          "A"
+          (or wttrin-display-options "")))
 
 (defun wttrin--extract-http-status ()
   "Return the HTTP status code from the current buffer, or nil.

@@ -174,6 +174,17 @@ Wttrin's default is to select the unit system appropriate for the location you q
   (setq wttrin-unit-system nil) ;; the default of using units appropriate for the queried location.
 #+end_src
 
+*** Display Options
+wttr.in supports a handful of single-character flags that change what the report looks like. Concatenate them in =wttrin-display-options= and they'll be appended to every request:
+
+#+begin_src emacs-lisp
+  (setq wttrin-display-options "0Fq")  ;; current weather only, no Follow line, no header
+  (setq wttrin-display-options "n")    ;; narrow version (only day and night)
+  (setq wttrin-display-options nil)    ;; default (all options off)
+#+end_src
+
+The full list of flags is at https://wttr.in/:help. Skip =A= and =T= — wttrin manages ANSI output internally so the colored glyphs render correctly.
+
 *** Cache Settings
 Wttrin caches weather data and refreshes it in the background. By default it refreshes every hour and keeps up to 50 entries. You can adjust both:
 

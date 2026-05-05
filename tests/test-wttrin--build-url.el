@@ -91,6 +91,50 @@ The @ symbol should be URL-encoded as %40."
       (should (string-prefix-p "https://wttr.in/" url))
       (should (string-match-p "%40github\\.com" url)))))
 
+;;; Display Options Cases
+
+(ert-deftest test-wttrin--build-url-normal-display-options-appended-after-A ()
+  "Display options string is appended after the A flag."
+  (let ((wttrin-unit-system nil)
+        (wttrin-display-options "0Fq"))
+    (should (string= "https://wttr.in/Paris?A0Fq"
+                     (wttrin--build-url "Paris")))))
+
+(ert-deftest test-wttrin--build-url-normal-display-options-with-unit-system ()
+  "Display options coexist with unit system, both inside the same query string."
+  (let ((wttrin-unit-system "m")
+        (wttrin-display-options "0F"))
+    (should (string= "https://wttr.in/Tokyo?mA0F"
+                     (wttrin--build-url "Tokyo")))))
+
+(ert-deftest test-wttrin--build-url-normal-display-options-narrow-quiet ()
+  "Common combination: narrow + quiet."
+  (let ((wttrin-unit-system nil)
+        (wttrin-display-options "nq"))
+    (should (string= "https://wttr.in/SFO?Anq"
+                     (wttrin--build-url "SFO")))))
+
+(ert-deftest test-wttrin--build-url-boundary-display-options-nil-omits-flags ()
+  "Nil display-options leaves URL unchanged from baseline."
+  (let ((wttrin-unit-system nil)
+        (wttrin-display-options nil))
+    (should (string= "https://wttr.in/Paris?A"
+                     (wttrin--build-url "Paris")))))
+
+(ert-deftest test-wttrin--build-url-boundary-display-options-empty-string-omits-flags ()
+  "Empty display-options string is treated like nil."
+  (let ((wttrin-unit-system nil)
+        (wttrin-display-options ""))
+    (should (string= "https://wttr.in/Paris?A"
+                     (wttrin--build-url "Paris")))))
+
+(ert-deftest test-wttrin--build-url-boundary-display-options-single-character ()
+  "Single-character display-options works."
+  (let ((wttrin-unit-system nil)
+        (wttrin-display-options "F"))
+    (should (string= "https://wttr.in/London?AF"
+                     (wttrin--build-url "London")))))
+
 ;;; Error Cases
 
 (ert-deftest test-wttrin--build-url-error-nil-query-signals-error ()
