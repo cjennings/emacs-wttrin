@@ -144,13 +144,75 @@ of entries, providing a reasonable buffer before the next cleanup.")
 
 (defcustom wttrin-favorite-location nil
   "Favorite location to display weather for.
-When nil, favorite location features are disabled.
-Set to a location string (e.g., \"New Orleans, LA\") to enable mode-line
-weather display and other location-based features.
-The weather icon and tooltip will update automatically in the background."
+
+Three modes:
+- nil      Favorite-location features are disabled (default).
+- a string Use the string as the location, e.g. \"Berkeley, CA\".
+- t        Auto-detect via IP geolocation.  wttrin runs the lookup
+           once on first use and caches the result for the session.
+           To pick a specific provider, customize
+           `wttrin-geolocation-provider'.
+
+When set, the weather icon and tooltip update automatically in the
+background.  IP-based auto-detection can be inaccurate behind a VPN
+or a mobile hotspot — use a string if you need accuracy."
   :group 'wttrin
   :type '(choice (const :tag "Disabled" nil)
+                 (const :tag "Auto-detect via geolocation" t)
                  (string :tag "Location")))
+
+(defvar wttrin--resolved-favorite-location nil
+  "Cached geolocation result for `wttrin-favorite-location' = t.
+Holds the resolved \"City, Region\" string so subsequent reads
+do not re-fetch.  Reset implicitly when the Emacs session ends.")
+
+(defvar wttrin--favorite-location-pending nil
+  "Non-nil while a geolocation lookup for the favorite is in flight.
+Prevents duplicate concurrent lookups when several consumers ask
+during the resolution window.")
+
+(defun wttrin--resolve-favorite-location ()
+  "Return the favorite location as a string, or nil if unavailable.
+Resolves `wttrin-favorite-location' across the three modes:
+- nil      -> nil (disabled)
+- a string -> the string as-is
+- t        -> the cached geolocation result.  When the cache is empty
+              and no lookup is in flight, kicks off an async detect
+              and returns nil for this call.  The next call after the
+              lookup completes returns the resolved string."
+  (cond
+   ((null wttrin-favorite-location) nil)
+   ((stringp wttrin-favorite-location) wttrin-favorite-location)
+   ((eq wttrin-favorite-location t)
+    (or wttrin--resolved-favorite-location
+        (progn
+          (wttrin--start-favorite-location-detect)
+          nil)))))
+
+(defun wttrin--start-favorite-location-detect ()
+  "Kick off an async geolocation lookup if one is not already pending.
+On success the resolved string is stored in
+`wttrin--resolved-favorite-location'.  Failures (network error, parse
+error) leave the cache empty and clear the pending flag, so the next
+call retries."
+  (unless wttrin--favorite-location-pending
+    (setq wttrin--favorite-location-pending t)
+    (require 'wttrin-geolocation)
+    (wttrin-geolocation-detect
+     (lambda (location)
+       (setq wttrin--favorite-location-pending nil)
+       (when location
+         (setq wttrin--resolved-favorite-location location)
+         (wttrin--debug-log
+          "Resolved favorite-location via geolocation: %s" location))))))
+
+(defun wttrin--favorite-location-display-name ()
+  "Return a human-readable name for the favorite location.
+Returns the resolved string when available; otherwise returns
+\"current location\" if auto-detect is configured but pending,
+or nil if the favorite is disabled."
+  (or (wttrin--resolve-favorite-location)
+      (when (eq wttrin-favorite-location t) "current location")))
 
 (defcustom wttrin-mode-line-refresh-interval 3600
   "Interval in seconds to refresh mode-line weather data.
@@ -675,29 +737,33 @@ e.g., \"Paris: ☀️ +61°F Clear\"."
   "Update placeholder to show fetch error state.
 Keeps the hourglass icon but updates tooltip to explain the failure
 and indicate when retry will occur."
-  (let ((retry-minutes (ceiling (/ wttrin-mode-line-refresh-interval 60.0))))
+  (let ((retry-minutes (ceiling (/ wttrin-mode-line-refresh-interval 60.0)))
+        (label (or (wttrin--favorite-location-display-name) "favorite")))
     (wttrin--set-mode-line-string
      (wttrin--make-emoji-icon "⏳")
      (format "Weather fetch failed for %s — will retry in %d minutes"
-             wttrin-favorite-location retry-minutes))))
+             label retry-minutes))))
 
 (defun wttrin--mode-line-fetch-weather ()
   "Fetch weather for favorite location and update mode-line display.
 Uses wttr.in custom format for concise weather with emoji.
 On success, writes to `wttrin--mode-line-cache' and updates display.
 On failure with existing cache, shows stale data.
-On failure with no cache, shows error placeholder."
+On failure with no cache, shows error placeholder.
+When `wttrin-favorite-location' is t and geolocation has not yet
+resolved, this call is a no-op; the next tick after resolution
+proceeds normally."
   (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location)
-  (if (not wttrin-favorite-location)
-      (wttrin--debug-log "mode-line-fetch: No favorite location set, skipping")
-    (let* ((location wttrin-favorite-location)
-           ;; wttr.in format codes: %l=location %c=emoji %t=temp %C=conditions
-           (format-params (if wttrin-unit-system
-                              (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
-                            "?format=%l:+%c+%t+%C"))
-           (url (concat "https://wttr.in/"
-                       (url-hexify-string location)
-                       format-params)))
+  (let ((location (wttrin--resolve-favorite-location)))
+    (if (not location)
+        (wttrin--debug-log "mode-line-fetch: No favorite location available, skipping")
+      (let* (;; wttr.in format codes: %l=location %c=emoji %t=temp %C=conditions
+             (format-params (if wttrin-unit-system
+                                (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
+                              "?format=%l:+%c+%t+%C"))
+             (url (concat "https://wttr.in/"
+                         (url-hexify-string location)
+                         format-params)))
       (wttrin--debug-log "mode-line-fetch: URL = %s" url)
       (wttrin--fetch-url
        url
@@ -718,7 +784,7 @@ On failure with no cache, shows error placeholder."
                ;; Have stale cache — update display to show staleness
                (wttrin--mode-line-update-display)
              ;; No cache at all — show error placeholder
-             (wttrin--mode-line-update-placeholder-error))))))))
+             (wttrin--mode-line-update-placeholder-error)))))))))
 
 (defun wttrin--mode-line-extract-emoji (weather-string)
   "Extract the emoji character from WEATHER-STRING.
@@ -783,14 +849,15 @@ shows staleness info in tooltip."
   "Handle left-click on mode-line weather widget.
 Check cache, refresh if needed, then open weather buffer."
   (interactive)
-  (when wttrin-favorite-location
-    (wttrin wttrin-favorite-location)))
+  (let ((location (wttrin--resolve-favorite-location)))
+    (when location
+      (wttrin location))))
 
 (defun wttrin-mode-line-force-refresh ()
   "Handle right-click on mode-line weather widget.
 Force-refresh cache and update tooltip without opening buffer."
   (interactive)
-  (when wttrin-favorite-location
+  (when (wttrin--resolve-favorite-location)
     (let ((wttrin--force-refresh t))
       (wttrin--mode-line-fetch-weather))))
 
@@ -798,7 +865,8 @@ Force-refresh cache and update tooltip without opening buffer."
   "Set a placeholder icon in the mode-line while waiting for weather data."
   (wttrin--set-mode-line-string
    (wttrin--make-emoji-icon "⏳")
-   (format "Fetching weather for %s..." wttrin-favorite-location)))
+   (format "Fetching weather for %s..."
+           (or (wttrin--favorite-location-display-name) "favorite"))))
 
 (defvar wttrin--buffer-refresh-timer nil
   "Timer object for proactive buffer cache refresh.")
@@ -807,16 +875,17 @@ Force-refresh cache and update tooltip without opening buffer."
   "Proactively refresh the buffer cache for `wttrin-favorite-location'.
 Fetches fresh weather data and updates the buffer cache entry without
 displaying anything.  This keeps buffer data fresh for when the user
-opens the weather buffer."
-  (when wttrin-favorite-location
-    (let* ((location wttrin-favorite-location)
-           (cache-key (wttrin--make-cache-key location)))
-      (wttrin-fetch-raw-string
-       location
-       (lambda (fresh-data &optional _error-msg)
-         (when fresh-data
-           (wttrin--cleanup-cache-if-needed)
-           (puthash cache-key (cons (float-time) fresh-data) wttrin--cache)))))))
+opens the weather buffer.  When the favorite is set to t and
+geolocation has not yet resolved, this call is a no-op."
+  (let ((location (wttrin--resolve-favorite-location)))
+    (when location
+      (let ((cache-key (wttrin--make-cache-key location)))
+        (wttrin-fetch-raw-string
+         location
+         (lambda (fresh-data &optional _error-msg)
+           (when fresh-data
+             (wttrin--cleanup-cache-if-needed)
+             (puthash cache-key (cons (float-time) fresh-data) wttrin--cache))))))))
 
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
@@ -824,6 +893,10 @@ opens the weather buffer."
                      wttrin-favorite-location
                      wttrin-mode-line-refresh-interval)
   (when wttrin-favorite-location
+    ;; Trigger geolocation resolution in the background if needed; the
+    ;; placeholder + scheduled fetch will pick up the resolved string
+    ;; on the next tick.
+    (wttrin--resolve-favorite-location)
     (wttrin--mode-line-set-placeholder)
     ;; Delay first fetch — network/daemon may not be ready at startup
     (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
