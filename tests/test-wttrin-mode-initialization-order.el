@@ -5,18 +5,45 @@
 ;;; Commentary:
 
 ;; This test verifies that wttrin--display-weather initializes wttrin-mode
-;; BEFORE setting buffer-local variables. This prevents kill-all-local-variables
-;; (called by derived modes) from wiping out important state like xterm-color--state.
+;; BEFORE making `xterm-color--state' buffer-local.  This prevents
+;; kill-all-local-variables (called by derived modes) from wiping out
+;; important state.
 ;;
 ;; Bug context: On fresh Emacs launch, weather displayed with no colors because
 ;; xterm-color--state was set buffer-local BEFORE wttrin-mode was called, and
 ;; wttrin-mode's kill-all-local-variables wiped it out.
+;;
+;; Earlier versions of this file mocked the `set' primitive to observe the
+;; ordering.  That was fragile because `setq-local' doesn't always go through
+;; the `set' function -- the byte-code path differs across Emacs versions, and
+;; on Emacs master the mock missed the assignment entirely.  This rewrite uses
+;; `advice-add' on `wttrin-mode' and `make-local-variable', both of which are
+;; ordinary advisable functions guaranteed to be invoked on every code path
+;; that defines a buffer-local binding.
 
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'wttrin)
 (require 'testutil-wttrin)
+
+(defvar test-wttrin--init-events nil
+  "Ordered list of init events captured during the order test.
+Each entry is `mode' or `xterm-color', recorded by advice on
+`wttrin-mode' and `make-local-variable' respectively.  Reset before
+each test run.")
+
+(defun test-wttrin--record-mode-call (&rest _args)
+  "Advice that records a `mode' event when `wttrin-mode' runs."
+  (push 'mode test-wttrin--init-events))
+
+(defun test-wttrin--record-mlv-call (symbol &rest _args)
+  "Advice that records an `xterm-color' event when SYMBOL is the target.
+Only triggers for `xterm-color--state' so unrelated buffer-local
+declarations don't pollute the timeline."
+  (when (eq symbol 'xterm-color--state)
+    (push 'xterm-color test-wttrin--init-events)))
 
 ;;; Setup and Teardown
 
@@ -34,50 +61,28 @@
 
 ;;; Tests
 
-(ert-deftest test-wttrin-mode-initialization-order-normal-mode-before-buffer-local-vars-calls-mode-first ()
-  "Test that wttrin-mode is activated before setting buffer-local variables.
+(ert-deftest test-wttrin-mode-initialization-order-normal-mode-runs-before-xterm-color-state-binding ()
+  "Verify wttrin-mode runs before xterm-color--state is made buffer-local.
 
-This test verifies the fix for the color rendering bug where xterm-color--state
-was wiped by kill-all-local-variables.
-
-The test strategy:
-1. Advise wttrin-mode to record when it's called
-2. Advise setq-local to record when buffer-local vars are set
-3. Call wttrin--display-weather
-4. Verify wttrin-mode was called BEFORE any buffer-local vars were set"
+If `make-local-variable' for `xterm-color--state' ran first, the subsequent
+`wttrin-mode' call would invoke `kill-all-local-variables' and wipe the
+state, leaving the rendered buffer without ANSI colors.  Observing the
+ordering directly catches a regression that re-introduces the bug even if
+the outcome test happens to pass on a particular Emacs version."
   (test-wttrin-mode-init-setup)
+  (setq test-wttrin--init-events nil)
+  (advice-add 'wttrin-mode :before #'test-wttrin--record-mode-call)
+  (advice-add 'make-local-variable :before #'test-wttrin--record-mlv-call)
   (unwind-protect
       (testutil-wttrin-with-clean-weather-buffer
-        (let ((mode-called-at nil)
-              (first-setq-local-at nil)
-              (call-counter 0))
-
-          ;; Advise to track when wttrin-mode is called
-          (cl-letf (((symbol-function 'wttrin-mode)
-                     (let ((orig-fn (symbol-function 'wttrin-mode)))
-                       (lambda ()
-                         (setq mode-called-at (cl-incf call-counter))
-                         (funcall orig-fn))))
-
-                    ;; Advise to track first buffer-local variable set
-                    ((symbol-function 'set)
-                     (let ((orig-fn (symbol-function 'set)))
-                       (lambda (symbol value)
-                         ;; Track xterm-color--state specifically
-                         (when (and (eq symbol 'xterm-color--state)
-                                    (null first-setq-local-at))
-                           (setq first-setq-local-at (cl-incf call-counter)))
-                         (funcall orig-fn symbol value)))))
-
-            (wttrin--display-weather "Paris" "Test weather data")
-
-            ;; Verify mode was called
-            (should mode-called-at)
-            ;; Verify buffer-local var was set
-            (should first-setq-local-at)
-            ;; Critical: mode must be called BEFORE buffer-local var
-            (should (< mode-called-at first-setq-local-at)))))
-
+        (wttrin--display-weather "Paris" "Test weather data")
+        (let ((order (nreverse test-wttrin--init-events)))
+          (should (memq 'mode order))
+          (should (memq 'xterm-color order))
+          (should (< (cl-position 'mode order)
+                     (cl-position 'xterm-color order)))))
+    (advice-remove 'wttrin-mode #'test-wttrin--record-mode-call)
+    (advice-remove 'make-local-variable #'test-wttrin--record-mlv-call)
     (test-wttrin-mode-init-teardown)))
 
 (ert-deftest test-wttrin-mode-initialization-order-normal-xterm-color-state-survives-mode-init ()

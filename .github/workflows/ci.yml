@@ -33,7 +33,18 @@ jobs:
           version: 'snapshot'
 
       - name: Install dependencies
-        run: make deps
+        run: |
+          for attempt in 1 2 3; do
+            if make deps; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::deps install attempt $attempt failed, retrying in 15s"
+              sleep 15
+            fi
+          done
+          echo "::error::deps install failed after 3 attempts"
+          exit 1
 
       - name: Run tests
         run: make test
@@ -55,7 +66,18 @@ jobs:
           version: 'snapshot'
 
       - name: Install dependencies
-        run: make deps
+        run: |
+          for attempt in 1 2 3; do
+            if make deps; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::deps install attempt $attempt failed, retrying in 15s"
+              sleep 15
+            fi
+          done
+          echo "::error::deps install failed after 3 attempts"
+          exit 1
 
       - name: Run linters
         run: make lint
@@ -77,7 +99,18 @@ jobs:
           version: 'snapshot'
 
       - name: Install dependencies
-        run: make deps
+        run: |
+          for attempt in 1 2 3; do
+            if make deps; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::deps install attempt $attempt failed, retrying in 15s"
+              sleep 15
+            fi
+          done
+          echo "::error::deps install failed after 3 attempts"
+          exit 1
 
       - name: Run coverage
         run: make coverage
