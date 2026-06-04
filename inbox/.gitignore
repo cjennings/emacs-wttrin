@@ -1,0 +1,4 @@
+# Inbox contents are transient and local-only — track the directory, ignore what lands in it.
+*
+!.gitignore
+!.gitkeep
