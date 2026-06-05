@@ -7,3 +7,4 @@
 /dist/
 *.elc
 *-autoloads.el
+*~
