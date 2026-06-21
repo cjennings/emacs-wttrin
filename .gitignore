@@ -8,3 +8,9 @@
 *.elc
 *-autoloads.el
 *~
+
+# --- elisp ruleset ---
+.claude/
+CLAUDE.md
+githooks/
+*.eln
