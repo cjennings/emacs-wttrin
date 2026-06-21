@@ -494,6 +494,61 @@ Handles header skipping, UTF-8 decoding, and error handling automatically."
 CALLBACK is called with the weather data string when ready, or nil on error."
   (wttrin--fetch-url (wttrin--build-url query) callback))
 
+;;; Location Search History
+
+(defcustom wttrin-location-history-max 20
+  "Maximum number of entries to keep in location search history.
+When the history exceeds this limit, the oldest entries are removed."
+  :group 'wttrin
+  :type 'integer)
+
+(defvar wttrin--location-history nil
+  "History of successfully searched locations, most recent first.
+Persisted across sessions via `savehist-mode'.")
+
+;; Declared so the byte-compiler doesn't warn; savehist defines it for real.
+(defvar savehist-additional-variables)
+
+(with-eval-after-load 'savehist
+  (add-to-list 'savehist-additional-variables 'wttrin--location-history))
+
+(defun wttrin--add-to-location-history (location)
+  "Record LOCATION as a recent successful search.
+No-op when LOCATION is nil, empty, or already a default location.  An existing
+entry is promoted to most-recent, and the list is trimmed to
+`wttrin-location-history-max'."
+  (when (and location
+             (not (string= location ""))
+             (not (member location wttrin-default-locations)))
+    (setq wttrin--location-history (delete location wttrin--location-history))
+    (push location wttrin--location-history)
+    (let ((max (max 0 wttrin-location-history-max)))
+      (when (> (length wttrin--location-history) max)
+        (setq wttrin--location-history
+              (butlast wttrin--location-history
+                       (- (length wttrin--location-history) max)))))))
+
+(defun wttrin--completion-candidates ()
+  "Return default locations followed by search-history entries.
+History already excludes defaults (see `wttrin--add-to-location-history')."
+  (append wttrin-default-locations wttrin--location-history))
+
+(defun wttrin-remove-location-history (location)
+  "Remove LOCATION from the search history.
+Prompts with completion over the current history entries."
+  (interactive
+   (list (completing-read "Remove from history: "
+                          wttrin--location-history nil t)))
+  (setq wttrin--location-history (delete location wttrin--location-history))
+  (message "Removed '%s' from location history" location))
+
+(defun wttrin-clear-location-history ()
+  "Clear all location search history."
+  (interactive)
+  (when (yes-or-no-p "Clear all location search history? ")
+    (setq wttrin--location-history nil)
+    (message "Location history cleared")))
+
 (defun wttrin--requery-location (new-location)
   "Kill current weather buffer and query NEW-LOCATION."
   (when (get-buffer "*wttr.in*")
@@ -504,7 +559,7 @@ CALLBACK is called with the weather data string when ready, or nil on error."
   "Kill buffer and requery wttrin."
   (interactive)
   (let ((new-location (completing-read
-                       "Location Name: " wttrin-default-locations nil nil
+                       "Location Name: " (wttrin--completion-candidates) nil nil
                        (when (= (length wttrin-default-locations) 1)
                          (car wttrin-default-locations)))))
     (wttrin--requery-location new-location)))
@@ -593,6 +648,7 @@ the generic error message."
       (message "wttrin: %s"
                (or error-msg
                    "Cannot retrieve weather data. Perhaps the location was misspelled?"))
+    (wttrin--add-to-location-history location-name)
     (let ((buffer (get-buffer-create (format "*wttr.in*"))))
       (switch-to-buffer buffer)
 
@@ -1008,7 +1064,7 @@ When enabled, shows weather for `wttrin-favorite-location'."
 Weather data is fetched asynchronously to avoid blocking Emacs."
   (interactive
    (list
-    (completing-read "Location Name: " wttrin-default-locations nil nil
+    (completing-read "Location Name: " (wttrin--completion-candidates) nil nil
                      (when (= (length wttrin-default-locations) 1)
                        (car wttrin-default-locations)))))
   (wttrin-query location))

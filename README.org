@@ -129,6 +129,24 @@ Most people will just want to add a bunch of cities to the location list. Howeve
           "41.89,12.48"))           ;; GPS Coordinates for Rome
 #+end_src
 
+*** Location Search History
+
+Locations you search successfully are remembered and offered as completion candidates the next time you run =M-x wttrin=, listed after your configured defaults. Only successful lookups are saved, so typos and not-found locations never enter the history. A location already in =wttrin-default-locations= is not duplicated into the history.
+
+History is capped at =wttrin-location-history-max= entries (default 20); the oldest fall off as new ones arrive.
+
+#+begin_src emacs-lisp
+  (setq wttrin-location-history-max 20)
+#+end_src
+
+To persist the history across Emacs restarts, enable the built-in =savehist-mode= (Wttrin registers its history variable automatically). Without it, history lasts for the session only.
+
+#+begin_src emacs-lisp
+  (savehist-mode 1)
+#+end_src
+
+Two commands manage the history: =M-x wttrin-remove-location-history= drops a single entry (with completion), and =M-x wttrin-clear-location-history= clears all of it.
+
 *** Default Language
 Customizing 'wttrin-default-languages' allows users to tell Wttrin which language to request for the text it displays. For instance, this changes the language used for days of the week, periods of the day, and other related text.
 
