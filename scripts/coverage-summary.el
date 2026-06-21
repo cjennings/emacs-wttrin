@@ -92,11 +92,15 @@ missing or malformed."
 
 (defun cj/coverage-summary--source-files (source-dir project-root)
   "Return *.el files directly under SOURCE-DIR, relative to PROJECT-ROOT.
-Sorted; compiled files and subdirectories are out of scope."
+Sorted.  Compiled files and subdirectories are out of scope, as are generated
+package files (`*-autoloads.el', `*-pkg.el') -- a build tool writes those, no
+test covers them, and counting them as untested source skews the number."
   (let ((source-dir (file-name-as-directory (expand-file-name source-dir)))
         (project-root (file-name-as-directory (expand-file-name project-root))))
-    (sort (mapcar (lambda (p) (file-relative-name p project-root))
-                  (directory-files source-dir t "\\.el\\'"))
+    (sort (seq-remove
+           (lambda (p) (string-match-p "\\(?:-autoloads\\|-pkg\\)\\.el\\'" p))
+           (mapcar (lambda (p) (file-relative-name p project-root))
+                   (directory-files source-dir t "\\.el\\'")))
           #'string<)))
 
 (defun cj/coverage-summary--missing (tracked source-dir project-root)
