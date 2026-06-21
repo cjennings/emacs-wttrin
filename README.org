@@ -139,7 +139,7 @@ History is capped at =wttrin-location-history-max= entries (default 20); the old
   (setq wttrin-location-history-max 20)
 #+end_src
 
-To persist the history across Emacs restarts, enable the built-in =savehist-mode= (Wttrin registers its history variable automatically). Without it, history lasts for the session only.
+To persist the history across Emacs restarts, enable the built-in =savehist-mode=. Wttrin keeps its history variable registered automatically, even if you set =savehist-additional-variables= yourself, so there is nothing else to configure. Without =savehist-mode=, history lasts for the session only.
 
 #+begin_src emacs-lisp
   (savehist-mode 1)

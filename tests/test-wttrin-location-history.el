@@ -203,5 +203,32 @@
   (require 'savehist)
   (should (memq 'wttrin--location-history savehist-additional-variables)))
 
+(ert-deftest test-wttrin-location-history-normal-savehist-register-adds-var ()
+  "wttrin--savehist-register adds the history variable to the save list."
+  (require 'savehist)
+  (let ((savehist-additional-variables '(kill-ring)))
+    (wttrin--savehist-register)
+    (should (memq 'wttrin--location-history savehist-additional-variables))))
+
+(ert-deftest test-wttrin-location-history-boundary-savehist-register-idempotent ()
+  "Registering when already present does not duplicate the entry."
+  (require 'savehist)
+  (let ((savehist-additional-variables '(wttrin--location-history)))
+    (wttrin--savehist-register)
+    (should (equal '(wttrin--location-history) savehist-additional-variables))))
+
+(ert-deftest test-wttrin-location-history-integration-savehist-register-on-save-hook ()
+  "The registration runs on `savehist-save-hook' so it survives a clobber."
+  (require 'savehist)
+  (should (memq 'wttrin--savehist-register savehist-save-hook)))
+
+(ert-deftest test-wttrin-location-history-integration-savehist-survives-clobber ()
+  "A user setq that drops the variable is repaired before the next save."
+  (require 'savehist)
+  (let ((savehist-additional-variables '(kill-ring search-ring)))
+    ;; simulate the save path: savehist-save runs this hook first
+    (run-hooks 'savehist-save-hook)
+    (should (memq 'wttrin--location-history savehist-additional-variables))))
+
 (provide 'test-wttrin-location-history)
 ;;; test-wttrin-location-history.el ends here

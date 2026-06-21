@@ -509,8 +509,16 @@ Persisted across sessions via `savehist-mode'.")
 ;; Declared so the byte-compiler doesn't warn; savehist defines it for real.
 (defvar savehist-additional-variables)
 
-(with-eval-after-load 'savehist
+(defun wttrin--savehist-register ()
+  "Ensure `wttrin--location-history' is persisted by savehist.
+Run both at load and on `savehist-save-hook', so the registration survives a
+user `setq' of `savehist-additional-variables' (a common config pattern) that
+would otherwise drop the entry before it could be saved."
   (add-to-list 'savehist-additional-variables 'wttrin--location-history))
+
+(with-eval-after-load 'savehist
+  (wttrin--savehist-register)
+  (add-hook 'savehist-save-hook #'wttrin--savehist-register))
 
 (defun wttrin--add-to-location-history (location)
   "Record LOCATION as a recent successful search.
