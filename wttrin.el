@@ -349,10 +349,43 @@ Returns \"just now\" for <60s, \"X minutes ago\", \"X hours ago\", or \"X days a
       (concat "?" wttrin-unit-system)
     "?"))
 
+;;; Error Types
+
+;; A small condition hierarchy so callers can branch on the *class* of a
+;; failure instead of matching message text.  `wttrin-error' is the parent.
+;; Synchronous code paths signal these directly; the async fetch path tags its
+;; human-readable error string with the class via the `wttrin-error-type' text
+;; property (see `wttrin--error-message'), so two-arg callbacks keep working
+;; while callers that care can read the class.
+
+(define-error 'wttrin-error "wttrin error")
+(define-error 'wttrin-invalid-input "Invalid input" 'wttrin-error)
+(define-error 'wttrin-network-error "Network error" 'wttrin-error)
+(define-error 'wttrin-not-found-error "Location not found" 'wttrin-error)
+(define-error 'wttrin-service-error "Weather service error" 'wttrin-error)
+(define-error 'wttrin-parse-error "Could not parse weather response" 'wttrin-error)
+
+(defun wttrin--error-message (type format-string &rest args)
+  "Format an error message of class TYPE.
+Return the string built from FORMAT-STRING and ARGS with TYPE stored in its
+`wttrin-error-type' text property.  This lets the async fetch path hand a
+plain string to callbacks while still carrying the error class; read it back
+with `wttrin-error-message-type'."
+  (propertize (apply #'format format-string args) 'wttrin-error-type type))
+
+(defun wttrin-error-message-type (error-msg)
+  "Return the error-class symbol carried by ERROR-MSG, or nil.
+ERROR-MSG is a string produced by wttrin's async fetch path; its class is
+stored in the `wttrin-error-type' text property.  A plain, empty, or nil
+ERROR-MSG has no class."
+  (and (stringp error-msg)
+       (> (length error-msg) 0)
+       (get-text-property 0 'wttrin-error-type error-msg)))
+
 (defun wttrin--build-url (query)
   "Build wttr.in URL for QUERY with configured parameters."
   (when (null query)
-    (error "Query cannot be nil"))
+    (signal 'wttrin-invalid-input '("Query cannot be nil")))
   (concat "https://wttr.in/"
           (url-hexify-string query)
           (wttrin-additional-url-params)
@@ -407,22 +440,33 @@ description of what went wrong, or nil on success."
      ((plist-get status :error)
       (wttrin--debug-log "wttrin--handle-fetch-callback: Network error - %s"
                          (cdr (plist-get status :error)))
-      (setq error-msg "Network error — check your connection")
+      (setq error-msg (wttrin--error-message
+                       'wttrin-network-error
+                       "Network error — check your connection"))
       (message "wttrin: %s" error-msg))
      ;; HTTP response received — extract body (returns nil for non-2xx)
      (t
       (let ((http-status (wttrin--extract-http-status)))
         (setq data (wttrin--extract-response-body))
-        (when (and (not data) http-status)
+        (when (not data)
           (setq error-msg
                 (cond
+                 ((null http-status)
+                  (wttrin--error-message
+                   'wttrin-parse-error "Could not read weather response"))
                  ((and (>= http-status 400) (< http-status 500))
-                  (format "Location not found (HTTP %d)" http-status))
+                  (wttrin--error-message
+                   'wttrin-not-found-error "Location not found (HTTP %d)" http-status))
                  ((>= http-status 500)
-                  (format "Weather service error (HTTP %d)" http-status))
-                 (t (format "Unexpected HTTP status %d" http-status))))
-          (when error-msg
-            (message "wttrin: %s" error-msg))))))
+                  (wttrin--error-message
+                   'wttrin-service-error "Weather service error (HTTP %d)" http-status))
+                 ((< http-status 300)
+                  (wttrin--error-message
+                   'wttrin-parse-error "Could not parse weather response (HTTP %d)" http-status))
+                 (t
+                  (wttrin--error-message
+                   'wttrin-error "Unexpected HTTP status %d" http-status))))
+          (message "wttrin: %s" error-msg)))))
     (condition-case err
         (progn
           (wttrin--debug-log "wttrin--handle-fetch-callback: Calling user callback with %s"

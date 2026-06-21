@@ -46,6 +46,11 @@
 
 (require 'json)
 (require 'url)
+;; For the shared error hierarchy (`wttrin-invalid-input' et al.).  This is a
+;; sub-module of wttrin and is only ever loaded through it, so the require is a
+;; no-op in practice; it makes the dependency explicit and keeps the condition
+;; symbols defined even if this file is loaded on its own.
+(require 'wttrin)
 
 (defgroup wttrin-geolocation nil
   "IP geolocation settings for wttrin."
@@ -142,7 +147,8 @@ by pushing onto this list; the keys become valid values for
   "Return the provider plist for SYMBOL.
 Signal an error if SYMBOL is not registered."
   (or (cdr (assq symbol wttrin-geolocation--providers))
-      (error "Unknown wttrin-geolocation provider: %S" symbol)))
+      (signal 'wttrin-invalid-input
+              (list (format "Unknown wttrin-geolocation provider: %S" symbol)))))
 
 ;;; Fetch and Detect
 

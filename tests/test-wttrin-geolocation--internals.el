@@ -128,9 +128,11 @@
 ;;; Error Cases
 
 (ert-deftest test-wttrin-geolocation--lookup-provider-error-unknown-symbol ()
-  "Unknown provider symbol signals error."
+  "Unknown provider symbol signals the typed wttrin-invalid-input condition."
   (should-error (wttrin-geolocation--lookup-provider 'definitely-not-registered)
-                :type 'error))
+                :type 'wttrin-invalid-input)
+  (should-error (wttrin-geolocation--lookup-provider 'definitely-not-registered)
+                :type 'wttrin-error))
 
 ;;; --------------------------------------------------------------------------
 ;;; wttrin-geolocation--extract-body
