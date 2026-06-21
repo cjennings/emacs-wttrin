@@ -46,6 +46,10 @@ TEST_UTIL_FILES = $(wildcard $(TEST_DIR)/testutil-*.el)
 # Coverage configuration
 COVERAGE_DIR = .coverage
 COVERAGE_FILE = $(COVERAGE_DIR)/simplecov.json
+# Whole-project summary: prints per-file coverage plus source files absent from
+# the report (modules no test loaded) counted as 0%. Self-contained, stock Emacs.
+COVERAGE_SUMMARY = scripts/coverage-summary.el
+COVERAGE_SOURCE_DIR = .
 
 # Plain emacs invocation (no package archives, used for parens-check)
 EMACS_BATCH = $(EMACS) --batch --no-site-file --no-site-lisp
@@ -55,7 +59,7 @@ EASK_EMACS = $(EMACS_ENV) $(EASK) emacs --batch -q -L $(PROJECT_ROOT) -L $(TEST_
 
 .PHONY: help test test-all test-smoke test-unit test-integration test-file test-name \
         deps install-deps validate-parens validate compile lint \
-        coverage coverage-clean \
+        coverage coverage-summary coverage-clean \
         clean clean-compiled clean-tests
 
 # Default target
@@ -74,6 +78,7 @@ help:
 	@echo ""
 	@echo "  Coverage:"
 	@echo "    make coverage          - Generate simplecov JSON at $(COVERAGE_FILE)"
+	@echo "    make coverage-summary  - Print per-file + whole-project summary (untested modules at 0%)"
 	@echo "    make coverage-clean    - Delete the coverage report file"
 	@echo ""
 	@echo "  Validation:"
@@ -231,6 +236,17 @@ coverage: coverage-clean $(COVERAGE_DIR)
 		echo "[!] No coverage file produced; check that undercover is installed"; \
 		exit 1; \
 	fi
+	@$(MAKE) coverage-summary
+
+# Whole-project summary. Stock Emacs only (no Eask deps) — the script needs just
+# the built-in `json' and `seq'. Counts a source file with no report entry as 0%.
+coverage-summary:
+	@if [ ! -f $(COVERAGE_FILE) ]; then \
+		echo "[!] No coverage report at $(COVERAGE_FILE). Run 'make coverage' first."; \
+		exit 1; \
+	fi
+	@$(EMACS) --batch -q -l $(COVERAGE_SUMMARY) \
+		--eval '(cj/coverage-print-module-summary "$(COVERAGE_FILE)" "$(COVERAGE_SOURCE_DIR)" "$(CURDIR)")'
 
 coverage-clean:
 	@rm -f $(COVERAGE_FILE)
