@@ -43,13 +43,10 @@
   "User should be told the cache was cleared."
   (test-wttrin-clear-cache-setup)
   (unwind-protect
-      (let ((displayed-message nil))
-        (cl-letf (((symbol-function 'message)
-                   (lambda (fmt &rest args)
-                     (setq displayed-message (apply #'format fmt args)))))
-          (wttrin-clear-cache)
-          (should displayed-message)
-          (should (string-match-p "cache cleared" displayed-message))))
+      (testutil-wttrin-with-captured-message displayed-message
+        (wttrin-clear-cache)
+        (should displayed-message)
+        (should (string-match-p "cache cleared" displayed-message)))
     (test-wttrin-clear-cache-teardown)))
 
 ;;; Boundary Cases

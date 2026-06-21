@@ -226,12 +226,9 @@
 (ert-deftest test-wttrin--handle-fetch-callback-error-network-shows-message ()
   "Network errors should show a specific message in the echo area,
 not leave the user guessing."
-  (let ((displayed-message nil))
+  (testutil-wttrin-with-captured-message displayed-message
     (cl-letf (((symbol-function 'wttrin--extract-response-body)
-               (lambda () nil))
-              ((symbol-function 'message)
-               (lambda (fmt &rest args)
-                 (setq displayed-message (apply #'format fmt args)))))
+               (lambda () nil)))
       (wttrin--handle-fetch-callback
        '(:error (error "Network unreachable"))
        #'ignore)
@@ -240,14 +237,11 @@ not leave the user guessing."
 
 (ert-deftest test-wttrin--handle-fetch-callback-error-http-404-shows-message ()
   "HTTP 404 should tell the user the location wasn't found."
-  (let ((displayed-message nil))
+  (testutil-wttrin-with-captured-message displayed-message
     (cl-letf (((symbol-function 'wttrin--extract-response-body)
                (lambda () nil))
               ((symbol-function 'wttrin--extract-http-status)
-               (lambda () 404))
-              ((symbol-function 'message)
-               (lambda (fmt &rest args)
-                 (setq displayed-message (apply #'format fmt args)))))
+               (lambda () 404)))
       ;; No :error in status — url-retrieve succeeded but server returned 404
       (wttrin--handle-fetch-callback nil #'ignore)
       (should displayed-message)
@@ -255,14 +249,11 @@ not leave the user guessing."
 
 (ert-deftest test-wttrin--handle-fetch-callback-error-http-500-shows-message ()
   "HTTP 500 should tell the user the weather service had an error."
-  (let ((displayed-message nil))
+  (testutil-wttrin-with-captured-message displayed-message
     (cl-letf (((symbol-function 'wttrin--extract-response-body)
                (lambda () nil))
               ((symbol-function 'wttrin--extract-http-status)
-               (lambda () 500))
-              ((symbol-function 'message)
-               (lambda (fmt &rest args)
-                 (setq displayed-message (apply #'format fmt args)))))
+               (lambda () 500)))
       (wttrin--handle-fetch-callback nil #'ignore)
       (should displayed-message)
       (should (string-match-p "service\\|server\\|500" (downcase displayed-message))))))

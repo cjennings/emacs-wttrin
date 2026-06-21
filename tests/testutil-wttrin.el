@@ -111,6 +111,20 @@
                   (funcall callback nil)))))
      ,@body))
 
+;;; Message Capture Helpers
+
+(defmacro testutil-wttrin-with-captured-message (msg-var &rest body)
+  "Run BODY with `message' captured into MSG-VAR.
+MSG-VAR starts nil and is set to each formatted message string as `message'
+is called, so after BODY it holds the last message shown (or nil if none).
+Other mocks BODY needs can be set in a nested `cl-letf'."
+  (declare (indent 1))
+  `(let ((,msg-var nil))
+     (cl-letf (((symbol-function 'message)
+                (lambda (fmt &rest args)
+                  (setq ,msg-var (apply #'format fmt args)))))
+       ,@body)))
+
 ;;; Mode-line Cache Helpers
 
 (defun testutil-wttrin-set-mode-line-cache (data &optional age-seconds)

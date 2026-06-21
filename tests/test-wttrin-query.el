@@ -102,20 +102,17 @@
   "When fetch returns nil, the user should see an error message, not a crash."
   (test-wttrin-query-setup)
   (unwind-protect
-      (let ((saved-callback nil)
-            (displayed-message nil))
-        (cl-letf (((symbol-function 'wttrin--get-cached-or-fetch)
-                   (lambda (_location callback)
-                     (setq saved-callback callback)))
-                  ((symbol-function 'message)
-                   (lambda (fmt &rest args)
-                     (setq displayed-message (apply #'format fmt args)))))
-          (wttrin-query "BadLocation")
-          ;; Simulate fetch returning nil
-          (funcall saved-callback nil)
-          ;; Should have shown error message (from wttrin--display-weather validation)
-          (should displayed-message)
-          (should (string-match-p "Cannot retrieve" displayed-message))))
+      (let ((saved-callback nil))
+        (testutil-wttrin-with-captured-message displayed-message
+          (cl-letf (((symbol-function 'wttrin--get-cached-or-fetch)
+                     (lambda (_location callback)
+                       (setq saved-callback callback))))
+            (wttrin-query "BadLocation")
+            ;; Simulate fetch returning nil
+            (funcall saved-callback nil)
+            ;; Should have shown error message (from wttrin--display-weather validation)
+            (should displayed-message)
+            (should (string-match-p "Cannot retrieve" displayed-message)))))
     (test-wttrin-query-teardown)))
 
 (provide 'test-wttrin-query)

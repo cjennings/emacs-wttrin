@@ -63,15 +63,12 @@
   "When no current location is set, user should be told there's nothing to refresh."
   (test-wttrin-requery-force-setup)
   (unwind-protect
-      (let ((displayed-message nil))
-        (cl-letf (((symbol-function 'message)
-                   (lambda (fmt &rest args)
-                     (setq displayed-message (apply #'format fmt args)))))
-          (with-current-buffer (get-buffer-create "*wttr.in*")
-            ;; wttrin--current-location is nil (buffer-local default)
-            (wttrin-requery-force)
-            (should displayed-message)
-            (should (string-match-p "No location" displayed-message)))))
+      (testutil-wttrin-with-captured-message displayed-message
+        (with-current-buffer (get-buffer-create "*wttr.in*")
+          ;; wttrin--current-location is nil (buffer-local default)
+          (wttrin-requery-force)
+          (should displayed-message)
+          (should (string-match-p "No location" displayed-message))))
     (test-wttrin-requery-force-teardown)))
 
 (ert-deftest test-wttrin-requery-force-boundary-force-flag-does-not-leak ()

@@ -159,11 +159,8 @@ Empty string does not match ERROR pattern, so it's processed as data."
   (test-wttrin--display-weather-setup)
   (unwind-protect
       (progn
-        (let ((message-log-max t)
-              (message-displayed nil))
-          (cl-letf (((symbol-function 'message)
-                     (lambda (format-string &rest args)
-                       (setq message-displayed (apply #'format format-string args)))))
+        (let ((message-log-max t))
+          (testutil-wttrin-with-captured-message message-displayed
             (wttrin--display-weather "InvalidCity" nil)
 
             ;; Should display error message
@@ -176,11 +173,8 @@ Empty string does not match ERROR pattern, so it's processed as data."
   (test-wttrin--display-weather-setup)
   (unwind-protect
       (progn
-        (let ((message-log-max t)
-              (message-displayed nil))
-          (cl-letf (((symbol-function 'message)
-                     (lambda (format-string &rest args)
-                       (setq message-displayed (apply #'format format-string args)))))
+        (let ((message-log-max t))
+          (testutil-wttrin-with-captured-message message-displayed
             (wttrin--display-weather "BadLocation" testutil-wttrin-sample-error-response)
 
             ;; Should display error message
