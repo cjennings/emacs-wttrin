@@ -218,6 +218,14 @@ wttr.in supports a handful of single-character flags that change what the report
 
 The full list of flags is at https://wttr.in/:help. Skip =A= and =T= — wttrin manages ANSI output internally so the colored glyphs render correctly.
 
+If the one flag you want is the "Follow" line off, there's a dedicated toggle so you don't have to remember =F=:
+
+#+begin_src emacs-lisp
+  (setq wttrin-hide-follow-line t)  ;; hide "Follow @igor_chubin for wttr.in updates"
+#+end_src
+
+It composes with =wttrin-display-options= (setting either one hides the line) and affects the weather buffer only, not the mode-line.
+
 *** Cache Settings
 Wttrin caches weather data and refreshes it in the background. By default it refreshes every hour and keeps up to 50 entries. You can adjust both:
 

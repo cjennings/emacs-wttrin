@@ -176,6 +176,15 @@ xterm-color rendering produces the colored glyphs."
   :type '(choice (const :tag "None" nil)
                  (string :tag "Options")))
 
+(defcustom wttrin-hide-follow-line nil
+  "When non-nil, hide the \"Follow @igor_chubin for wttr.in updates\" line.
+Adds the wttr.in F flag to the weather-buffer request so the service omits
+the line.  This is the discoverable toggle for the same effect as putting
+F in `wttrin-display-options'; setting either one hides the line, and they
+do not conflict.  Affects the `wttrin' buffer only, not the mode-line."
+  :group 'wttrin
+  :type 'boolean)
+
 
 (define-obsolete-variable-alias 'wttrin-cache-ttl 'wttrin-refresh-interval "0.3.0")
 
@@ -519,6 +528,16 @@ ERROR-MSG has no class."
        (> (length error-msg) 0)
        (get-text-property 0 'wttrin-error-type error-msg)))
 
+(defun wttrin--effective-display-options ()
+  "Return the wttr.in display flags for the weather-buffer request.
+Starts from `wttrin-display-options' and appends the F flag (\"do not show
+the Follow line\") when `wttrin-hide-follow-line' is non-nil and F is not
+already present, so the two controls compose without duplicating the flag."
+  (let ((opts (or wttrin-display-options "")))
+    (if (and wttrin-hide-follow-line (not (string-match-p "F" opts)))
+        (concat opts "F")
+      opts)))
+
 (defun wttrin--build-url (query)
   "Build wttr.in URL for QUERY with configured parameters."
   (when (null query)
@@ -527,7 +546,7 @@ ERROR-MSG has no class."
           (url-hexify-string query)
           (wttrin-additional-url-params)
           "A"
-          (or wttrin-display-options "")))
+          (wttrin--effective-display-options)))
 
 (defun wttrin--extract-http-status ()
   "Return the HTTP status code from the current buffer, or nil.
