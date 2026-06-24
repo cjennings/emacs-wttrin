@@ -106,7 +106,9 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 [[assets/location-menu.png]]
 
-Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `a` to check another location, `g` to refresh, or `q` to quit.
+Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `a` to check another location, `g` to refresh, `d` to make the shown location your default, or `q` to quit.
+
+Pressing `d` sets =wttrin-favorite-location= to the location on screen and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick.
 
 If you're looking at cached data, a line below the weather art tells you how old it is (e.g., "Last updated: 2:30 PM (5 minutes ago)").
 

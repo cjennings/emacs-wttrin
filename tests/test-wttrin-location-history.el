@@ -211,11 +211,13 @@
     (should (memq 'wttrin--location-history savehist-additional-variables))))
 
 (ert-deftest test-wttrin-location-history-boundary-savehist-register-idempotent ()
-  "Registering when already present does not duplicate the entry."
+  "Registering an already-present variable does not duplicate it."
   (require 'savehist)
-  (let ((savehist-additional-variables '(wttrin--location-history)))
+  (require 'cl-lib)
+  (let ((savehist-additional-variables '(wttrin--location-history wttrin-favorite-location)))
     (wttrin--savehist-register)
-    (should (equal '(wttrin--location-history) savehist-additional-variables))))
+    (should (= 1 (cl-count 'wttrin--location-history savehist-additional-variables)))
+    (should (= 1 (cl-count 'wttrin-favorite-location savehist-additional-variables)))))
 
 (ert-deftest test-wttrin-location-history-integration-savehist-register-on-save-hook ()
   "The registration runs on `savehist-save-hook' so it survives a clobber."

@@ -28,7 +28,7 @@
   "Test adding instructions to empty buffer."
   (with-temp-buffer
     (wttrin--add-buffer-instructions)
-    (should (string= "\n\nPress: [a] for another location [g] to refresh [q] to quit"
+    (should (string= "\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-normal-with-existing-content-appends-instructions ()
@@ -36,7 +36,7 @@
   (with-temp-buffer
     (insert "Weather: Sunny\nTemperature: 20°C")
     (wttrin--add-buffer-instructions)
-    (should (string= "Weather: Sunny\nTemperature: 20°C\n\nPress: [a] for another location [g] to refresh [q] to quit"
+    (should (string= "Weather: Sunny\nTemperature: 20°C\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-normal-preserves-point-moves-to-end ()
@@ -99,7 +99,7 @@
     (insert "Weather data here")
     (goto-char (point-min))
     (wttrin--add-buffer-instructions)
-    (should (string-suffix-p "Press: [a] for another location [g] to refresh [q] to quit"
+    (should (string-suffix-p "Press: [a] for another location [g] to refresh [d] to make default [q] to quit"
                              (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-point-in-middle-appends-at-end ()
@@ -109,7 +109,7 @@
     (goto-char (point-min))
     (forward-line 1)
     (wttrin--add-buffer-instructions)
-    (should (string-suffix-p "Press: [a] for another location [g] to refresh [q] to quit"
+    (should (string-suffix-p "Press: [a] for another location [g] to refresh [d] to make default [q] to quit"
                              (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-trailing-newlines-preserves-newlines ()
@@ -117,7 +117,7 @@
   (with-temp-buffer
     (insert "Weather\n\n\n")
     (wttrin--add-buffer-instructions)
-    (should (string= "Weather\n\n\n\n\nPress: [a] for another location [g] to refresh [q] to quit"
+    (should (string= "Weather\n\n\n\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-very-large-buffer-appends-at-end ()
@@ -126,7 +126,7 @@
     (insert (make-string 10000 ?x))
     (wttrin--add-buffer-instructions)
     (goto-char (point-max))
-    (should (looking-back "Press: \\[a\\] for another location \\[g\\] to refresh \\[q\\] to quit" nil))))
+    (should (looking-back "Press: \\[a\\] for another location \\[g\\] to refresh \\[d\\] to make default \\[q\\] to quit" nil))))
 
 ;;; Error Cases
 

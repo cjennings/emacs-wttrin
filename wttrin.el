@@ -536,11 +536,14 @@ Persisted across sessions via `savehist-mode'.")
 (defvar savehist-additional-variables)
 
 (defun wttrin--savehist-register ()
-  "Ensure `wttrin--location-history' is persisted by savehist.
+  "Ensure wttrin's persisted variables are saved by savehist.
+Registers `wttrin--location-history' and `wttrin-favorite-location' so both
+survive across restarts without the Emacs custom-variable mechanism.
 Run both at load and on `savehist-save-hook', so the registration survives a
 user `setq' of `savehist-additional-variables' (a common config pattern) that
-would otherwise drop the entry before it could be saved."
-  (add-to-list 'savehist-additional-variables 'wttrin--location-history))
+would otherwise drop the entries before they could be saved."
+  (add-to-list 'savehist-additional-variables 'wttrin--location-history)
+  (add-to-list 'savehist-additional-variables 'wttrin-favorite-location))
 
 (with-eval-after-load 'savehist
   (wttrin--savehist-register)
@@ -563,9 +566,16 @@ entry is promoted to most-recent, and the list is trimmed to
                        (- (length wttrin--location-history) max)))))))
 
 (defun wttrin--completion-candidates ()
-  "Return default locations followed by search-history entries.
-History already excludes defaults (see `wttrin--add-to-location-history')."
-  (append wttrin-default-locations wttrin--location-history))
+  "Return the favorite, default locations, then search-history entries.
+History already excludes defaults (see `wttrin--add-to-location-history'), and
+`wttrin--set-favorite-location' drops the favorite from history.  The favorite
+\(`wttrin-favorite-location', when a string) is prepended unless it is already a
+default, so it always appears exactly once."
+  (let ((candidates (append wttrin-default-locations wttrin--location-history)))
+    (if (and (stringp wttrin-favorite-location)
+             (not (member wttrin-favorite-location candidates)))
+        (cons wttrin-favorite-location candidates)
+      candidates)))
 
 (defun wttrin-remove-location-history (location)
   "Remove LOCATION from the search history.
@@ -602,6 +612,7 @@ Prompts with completion over the current history entries."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "a") 'wttrin-requery)
     (define-key map (kbd "g") 'wttrin-requery-force)
+    (define-key map (kbd "d") 'wttrin-make-default)
     ;; Note: 'q' is bound to quit-window by special-mode
     map)
   "Keymap for wttrin-mode.")
@@ -664,6 +675,8 @@ Bracketed key chords use `wttrin-key'; the surrounding prose uses
                      (" for another location " . wttrin-instructions)
                      ("[g]" . wttrin-key)
                      (" to refresh " . wttrin-instructions)
+                     ("[d]" . wttrin-key)
+                     (" to make default " . wttrin-instructions)
                      ("[q]" . wttrin-key)
                      (" to quit" . wttrin-instructions)))
     (insert (propertize (car segment) 'face (cdr segment)))))
@@ -835,6 +848,29 @@ reject inaccurate results."
         (message "Refreshing weather data...")
         (wttrin-query wttrin--current-location))
     (message "No location to refresh")))
+
+(defun wttrin--set-favorite-location (location)
+  "Set `wttrin-favorite-location' to LOCATION and drop it from search history.
+LOCATION becomes a permanent default, so it no longer needs a history entry,
+mirroring how `wttrin-default-locations' entries are kept out of history.
+Persistence is handled by `wttrin--savehist-register', which registers the
+variable when savehist loads and again on `savehist-save-hook', so the value
+survives restarts without the Emacs custom-variable mechanism, and setting it
+here works whether or not savehist is loaded."
+  (setq wttrin-favorite-location location)
+  (setq wttrin--location-history (delete location wttrin--location-history)))
+
+(defun wttrin-make-default ()
+  "Make the location shown in this buffer the favorite (persisted) default.
+Sets `wttrin-favorite-location' to the displayed location so it drives the
+mode-line and survives restarts.  No-op with a message when the buffer has
+no current location."
+  (interactive)
+  (if wttrin--current-location
+      (progn
+        (wttrin--set-favorite-location wttrin--current-location)
+        (message "wttrin: %s is now the default location" wttrin--current-location))
+    (message "wttrin: no location to make default")))
 
 ;;; Mode-line weather display
 
