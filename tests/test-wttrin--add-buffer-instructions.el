@@ -73,6 +73,24 @@
             (setq count (1+ count))))
         (should (= 2 count))))))
 
+(ert-deftest test-wttrin--add-buffer-instructions-normal-key-chords-carry-key-face ()
+  "Bracketed key chords are styled with `wttrin-key'."
+  (with-temp-buffer
+    (wttrin--add-buffer-instructions)
+    (goto-char (point-min))
+    (search-forward "[a]")
+    ;; point is just after the closing bracket; the bracket char is part
+    ;; of the "[a]" segment
+    (should (eq (get-text-property (1- (point)) 'face) 'wttrin-key))))
+
+(ert-deftest test-wttrin--add-buffer-instructions-normal-prose-carries-instructions-face ()
+  "The footer prose is styled with `wttrin-instructions'."
+  (with-temp-buffer
+    (wttrin--add-buffer-instructions)
+    (goto-char (point-min))
+    (search-forward "Press:")
+    (should (eq (get-text-property (1- (point)) 'face) 'wttrin-instructions))))
+
 ;;; Boundary Cases
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-point-at-beginning-appends-at-end ()

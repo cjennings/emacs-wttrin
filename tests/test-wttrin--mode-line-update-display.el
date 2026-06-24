@@ -170,7 +170,7 @@
     (test-wttrin--mode-line-update-display-teardown)))
 
 (ert-deftest test-wttrin--mode-line-update-display-stale-emoji-dimmed ()
-  "Stale data dims the emoji with gray foreground."
+  "Stale data dims the emoji via the `wttrin-mode-line-stale' face."
   (test-wttrin--mode-line-update-display-setup)
   (unwind-protect
       (let ((wttrin-mode-line-refresh-interval 900)
@@ -178,13 +178,13 @@
         (cl-letf (((symbol-function 'float-time) (lambda () 3000.0)))
           (setq wttrin--mode-line-cache (cons 1000.0 "Paris: X +61°F Clear"))
           (wttrin--mode-line-update-display)
-          ;; The emoji character should have a gray face
+          ;; The emoji character should inherit the stale face
           (let* ((str wttrin-mode-line-string)
                  ;; Find the emoji position (after the space)
                  (emoji-pos 1)
                  (face (get-text-property emoji-pos 'face str)))
             (should face)
-            (should (equal (plist-get face :foreground) "gray60")))))
+            (should (eq (plist-get face :inherit) 'wttrin-mode-line-stale)))))
     (test-wttrin--mode-line-update-display-teardown)))
 
 ;;; Boundary Cases
@@ -223,7 +223,7 @@ trigger an emoji re-render so dimming matches the tooltip's staleness state."
           (wttrin--mode-line-update-display)
           ;; Emoji should NOT be dimmed
           (let ((face (get-text-property 1 'face wttrin-mode-line-string)))
-            (should-not (and face (equal (plist-get face :foreground) "gray60")))))
+            (should-not (and face (eq (plist-get face :inherit) 'wttrin-mode-line-stale)))))
 
         ;; Time passes: data is now stale (age=2001, threshold=1800)
         ;; Invoke the tooltip (simulating a hover) — this should trigger a re-render
@@ -233,7 +233,7 @@ trigger an emoji re-render so dimming matches the tooltip's staleness state."
           ;; After hover detected staleness transition, emoji should now be dimmed
           (let ((face (get-text-property 1 'face wttrin-mode-line-string)))
             (should face)
-            (should (equal (plist-get face :foreground) "gray60")))))
+            (should (eq (plist-get face :inherit) 'wttrin-mode-line-stale)))))
     (test-wttrin--mode-line-update-display-teardown)))
 
 ;;; --------------------------------------------------------------------------

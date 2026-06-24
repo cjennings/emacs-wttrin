@@ -50,6 +50,18 @@
             (should (string-match-p "just now" header)))))
     (test-wttrin--format-staleness-header-teardown)))
 
+(ert-deftest test-wttrin--format-staleness-header-normal-carries-face ()
+  "The returned header string is styled with `wttrin-staleness-header'."
+  (test-wttrin--format-staleness-header-setup)
+  (unwind-protect
+      (let ((now 1000000.0))
+        (cl-letf (((symbol-function 'float-time) (lambda () now)))
+          (testutil-wttrin-add-to-cache "Paris" "weather data" 300)
+          (let ((header (wttrin--format-staleness-header "Paris")))
+            (should (eq (get-text-property 0 'face header)
+                        'wttrin-staleness-header)))))
+    (test-wttrin--format-staleness-header-teardown)))
+
 ;;; Boundary Cases
 
 (ert-deftest test-wttrin--format-staleness-header-boundary-no-cache-returns-nil ()

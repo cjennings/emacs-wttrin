@@ -293,6 +293,23 @@ The default lookup provider is =ipapi.co=. Two alternatives ship with the packag
 
 *Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. The confirmation prompt lets you reject an inaccurate result. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
 
+*** Theming the Faces
+The text wttrin draws itself uses named faces, so themes and =M-x customize-face= can restyle it. (The weather art itself is colored by the ANSI codes wttr.in returns, not by these faces.)
+
+| Face                      | Styles                                               | Default           |
+|---------------------------+------------------------------------------------------+-------------------|
+| =wttrin-mode-line-stale=  | the mode-line emoji when its data has gone stale     | inherits =shadow= |
+| =wttrin-staleness-header= | the "Last updated: ..." line in the weather buffer   | inherits =shadow= |
+| =wttrin-instructions=     | the key-hint footer prose in the weather buffer      | inherits =shadow= |
+| =wttrin-key=              | the bracketed key chords ([a] [g] [q]) in the footer | inherits =bold=   |
+
+Restyle them in your init file like any other face:
+
+#+begin_src emacs-lisp
+  (set-face-attribute 'wttrin-key nil :foreground "deep sky blue" :weight 'bold)
+  (set-face-attribute 'wttrin-staleness-header nil :slant 'italic)
+#+end_src
+
 ** Debugging and Troubleshooting
 If something isn't working, debug mode logs every fetch, every display update, and every error.
 

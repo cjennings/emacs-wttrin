@@ -57,6 +57,32 @@
   :prefix "wttrin-"
   :group 'comm)
 
+(defface wttrin-mode-line-stale
+  '((t :inherit shadow))
+  "Face for the mode-line weather emoji when its data is stale.
+Applied when a scheduled refresh has failed and the cached reading is
+older than twice `wttrin-mode-line-refresh-interval'.  A color emoji
+font may ignore the foreground, in which case the dimming is only
+visible on monochrome glyphs."
+  :group 'wttrin)
+
+(defface wttrin-staleness-header
+  '((t :inherit shadow))
+  "Face for the \"Last updated: ...\" line in the weather buffer."
+  :group 'wttrin)
+
+(defface wttrin-instructions
+  '((t :inherit shadow))
+  "Face for the key-hint footer prose in the weather buffer."
+  :group 'wttrin)
+
+(defface wttrin-key
+  '((t :inherit bold))
+  "Face for the bracketed key chords in the weather buffer footer.
+`help-key-binding' would be the natural parent, but it only exists in
+Emacs 28+, and wttrin supports 24.4, so the default inherits `bold'."
+  :group 'wttrin)
+
 (defcustom wttrin-font-name "Liberation Mono"
   "Preferred monospaced font name for weather display."
   :group 'wttrin
@@ -628,9 +654,19 @@ Returns processed string ready for display."
       (buffer-string))))
 
 (defun wttrin--add-buffer-instructions ()
-  "Add user instructions at bottom of current buffer."
+  "Add the key-hint footer at the bottom of the current buffer.
+Bracketed key chords use `wttrin-key'; the surrounding prose uses
+`wttrin-instructions'."
   (goto-char (point-max))
-  (insert "\n\nPress: [a] for another location [g] to refresh [q] to quit"))
+  (insert "\n\n")
+  (dolist (segment '(("Press: " . wttrin-instructions)
+                     ("[a]" . wttrin-key)
+                     (" for another location " . wttrin-instructions)
+                     ("[g]" . wttrin-key)
+                     (" to refresh " . wttrin-instructions)
+                     ("[q]" . wttrin-key)
+                     (" to quit" . wttrin-instructions)))
+    (insert (propertize (car segment) 'face (cdr segment)))))
 
 (defun wttrin--format-staleness-header (location)
   "Return a staleness header string for LOCATION, or nil if no cache entry.
@@ -643,7 +679,8 @@ Looks up the cache timestamp for LOCATION and formats a line like
              (age (- (float-time) timestamp))
              (time-str (format-time-string "%l:%M %p" (seconds-to-time timestamp)))
              (age-str (wttrin--format-age age)))
-        (format "Last updated: %s (%s)" (string-trim time-str) age-str)))))
+        (propertize (format "Last updated: %s (%s)" (string-trim time-str) age-str)
+                    'face 'wttrin-staleness-header)))))
 
 (defun wttrin--display-weather (location-name raw-string &optional error-msg)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer.
@@ -809,19 +846,19 @@ user's original casing so tooltips display what the user expects."
       (concat location (substring response (match-beginning 0)))
     response))
 
-(defun wttrin--make-emoji-icon (emoji &optional foreground)
-  "Create EMOJI string with optional font face and FOREGROUND color.
-Uses `wttrin-mode-line-emoji-font' when configured.
-Omits `:foreground' from the face plist when FOREGROUND is nil — a literal
-`:foreground nil' entry triggers \"Invalid face attribute\" warnings on every
+(defun wttrin--make-emoji-icon (emoji &optional face)
+  "Create EMOJI string, optionally styled with FACE and the emoji font.
+Uses `wttrin-mode-line-emoji-font' when configured.  FACE, when non-nil,
+is applied via `:inherit'.  Omitting it avoids a literal `:inherit nil'
+entry, which triggers \"Invalid face attribute\" warnings on every
 redisplay."
   (if wttrin-mode-line-emoji-font
       (propertize emoji
                   'face `(:family ,wttrin-mode-line-emoji-font
                           :height 1.0
-                          ,@(when foreground (list :foreground foreground))))
-    (if foreground
-        (propertize emoji 'face (list :foreground foreground))
+                          ,@(when face (list :inherit face))))
+    (if face
+        (propertize emoji 'face (list :inherit face))
       emoji)))
 
 (defun wttrin--set-mode-line-string (icon tooltip)
@@ -947,7 +984,7 @@ shows staleness info in tooltip."
                            emoji stale-p)
         (setq wttrin--mode-line-rendered-stale stale-p)
         (setq wttrin-mode-line-string
-              (propertize (concat " " (wttrin--make-emoji-icon emoji (when stale-p "gray60")))
+              (propertize (concat " " (wttrin--make-emoji-icon emoji (when stale-p 'wttrin-mode-line-stale)))
                           'help-echo #'wttrin--mode-line-tooltip
                           'mouse-face 'mode-line-highlight
                           'local-map wttrin--mode-line-map)))))
