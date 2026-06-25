@@ -61,6 +61,51 @@ unbound); persistence is left to `wttrin--savehist-register'."
     (should (memq 'wttrin-favorite-location savehist-additional-variables))))
 
 ;;; --------------------------------------------------------------------------
+;;; mode-line refresh when the favorite changes
+;;; --------------------------------------------------------------------------
+
+;;; Normal Cases
+
+(ert-deftest test-wttrin--set-favorite-location-normal-mode-line-on-refreshes ()
+  "Normal: changing the favorite while the mode-line is active clears the
+stale cache and fetches fresh weather for the new location immediately."
+  (let ((wttrin-favorite-location "Oslo, NO")
+        (wttrin-mode-line-mode t)
+        (wttrin--mode-line-cache (cons 0.0 "Oslo, NO: sun"))
+        (fetched nil))
+    (cl-letf (((symbol-function 'wttrin--mode-line-fetch-weather)
+               (lambda () (setq fetched t)))
+              ((symbol-function 'wttrin--mode-line-set-placeholder)
+               (lambda () nil)))
+      (wttrin--set-favorite-location "Paris, FR")
+      (should (null wttrin--mode-line-cache))
+      (should fetched))))
+
+;;; Boundary Cases
+
+(ert-deftest test-wttrin--set-favorite-location-boundary-mode-line-off-no-fetch ()
+  "Boundary: with the mode-line inactive, changing the favorite does not fetch."
+  (let ((wttrin-favorite-location "Oslo, NO")
+        (wttrin-mode-line-mode nil)
+        (fetched nil))
+    (cl-letf (((symbol-function 'wttrin--mode-line-fetch-weather)
+               (lambda () (setq fetched t))))
+      (wttrin--set-favorite-location "Paris, FR")
+      (should-not fetched))))
+
+(ert-deftest test-wttrin--set-favorite-location-boundary-unchanged-no-fetch ()
+  "Boundary: re-promoting the current favorite does not refetch the mode-line."
+  (let ((wttrin-favorite-location "Paris, FR")
+        (wttrin-mode-line-mode t)
+        (fetched nil))
+    (cl-letf (((symbol-function 'wttrin--mode-line-fetch-weather)
+               (lambda () (setq fetched t)))
+              ((symbol-function 'wttrin--mode-line-set-placeholder)
+               (lambda () nil)))
+      (wttrin--set-favorite-location "Paris, FR")
+      (should-not fetched))))
+
+;;; --------------------------------------------------------------------------
 ;;; wttrin-make-default
 ;;; --------------------------------------------------------------------------
 

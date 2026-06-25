@@ -857,8 +857,11 @@ Persistence is handled by `wttrin--savehist-register', which registers the
 variable when savehist loads and again on `savehist-save-hook', so the value
 survives restarts without the Emacs custom-variable mechanism, and setting it
 here works whether or not savehist is loaded."
-  (setq wttrin-favorite-location location)
-  (setq wttrin--location-history (delete location wttrin--location-history)))
+  (let ((changed (not (equal location wttrin-favorite-location))))
+    (setq wttrin-favorite-location location)
+    (setq wttrin--location-history (delete location wttrin--location-history))
+    (when (and changed (bound-and-true-p wttrin-mode-line-mode))
+      (wttrin--mode-line-refresh-now))))
 
 (defun wttrin-make-default ()
   "Make the location shown in this buffer the favorite (persisted) default.
@@ -1048,6 +1051,16 @@ Force-refresh cache and update tooltip without opening buffer."
    (wttrin--make-emoji-icon "⏳")
    (format "Fetching weather for %s..."
            (or (wttrin--favorite-location-display-name) "favorite"))))
+
+(defun wttrin--mode-line-refresh-now ()
+  "Discard the cached mode-line weather and fetch fresh data immediately.
+Called when `wttrin-favorite-location' changes so the mode-line stops
+showing the previous location's weather instead of waiting for the next
+scheduled refresh."
+  (setq wttrin--mode-line-cache nil)
+  (setq wttrin--mode-line-rendered-stale nil)
+  (wttrin--mode-line-set-placeholder)
+  (wttrin--mode-line-fetch-weather))
 
 (defvar wttrin--buffer-refresh-timer nil
   "Timer object for proactive buffer cache refresh.")
