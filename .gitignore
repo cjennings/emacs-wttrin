@@ -8,6 +8,8 @@
 *.elc
 *-autoloads.el
 *~
+__pycache__/
+*.pyc
 
 # --- elisp ruleset ---
 .claude/

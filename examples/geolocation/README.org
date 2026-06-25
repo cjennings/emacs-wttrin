@@ -1,0 +1,164 @@
+#+TITLE: wttrin geolocation command adapters
+
+These are example programs for ~wttrin-geolocation-command~. wttrin can run an
+external command to find your location with far better accuracy than IP
+geolocation (which only finds your network's exit point — wrong on a VPN or a
+cellular hotspot). The command scans nearby WiFi access points, looks them up,
+and prints coordinates; wttrin then queries wttr.in by those coordinates.
+
+These are *examples*, not part of the installed package. Copy one, adapt it to
+your system, and point the variable at it:
+
+#+begin_src emacs-lisp
+  (setq wttrin-geolocation-command "/path/to/google-geolocate.py")
+#+end_src
+
+* The contract
+
+A command prints one JSON object to standard output and exits zero:
+
+#+begin_src json
+  {"lat": 41.3222, "lng": -71.8113, "accuracy_m": 25.0, "address": "Westerly, Rhode Island, USA"}
+#+end_src
+
+- ~lat~ and ~lng~ (numbers) are required. wttrin fetches weather for them.
+- ~address~ (or ~label~) is optional. When present, wttrin shows it on a
+  "Location:" line in the weather buffer, so the resolved place is readable even
+  though the weather was fetched by raw coordinates.
+- Any other keys are ignored.
+
+On any failure the command should exit non-zero (and may print a message to
+standard error). wttrin then falls back to the IP provider named by
+~wttrin-geolocation-provider~, so geolocation still works.
+
+* The adapters
+
+** google-geolocate.py
+Uses the Google Geolocation API. Documented, supported, accurate, broad
+coverage. Needs an API key (see below). Recommended starting point.
+
+** apple-wps.py
+Uses Apple's WiFi positioning service. Keyless and accurate, but it queries an
+*undocumented* Apple endpoint via a reverse-engineered protocol, which may be
+contrary to Apple's terms of service. Read the caveat at the top of the file and
+decide for yourself. Provided as an example only.
+
+* Requirements
+
+- Python 3 (standard library only — no packages to install).
+- A WiFi scanner. Both examples use ~nmcli~ (NetworkManager), which is common on
+  Linux. On a system without NetworkManager, replace the ~scan_wifi~ function
+  with your platform's scanner; that is the only platform-specific part. See
+  "Adapting the WiFi scan" below for systemd-networkd, iwd, and macOS.
+- Network access. Both also do a best-effort reverse-geocode via OpenStreetMap
+  Nominatim to fill in ~address~; if that call fails the coordinates are still
+  returned, just without an address.
+
+* Adapting the WiFi scan
+
+~scan_wifi~ needs, for each nearby access point, its BSSID (MAC address) and a
+signal strength. nmcli gives a 0-100 quality (the examples convert it to dBm);
+the sources below give dBm directly. Swap in whichever your system has and adjust
+the parsing to match the sample line.
+
+** systemd-networkd (via wpa_supplicant)
+networkd handles addressing, not WiFi scanning — the scan comes from
+wpa_supplicant. No root needed when wpa_supplicant is already running.
+
+#+begin_src sh
+  wpa_cli -i wlan0 scan
+  wpa_cli -i wlan0 scan_results
+#+end_src
+
+Output columns are =BSSID  frequency  signal(dBm)  flags  SSID= (tab-separated):
+
+#+begin_example
+  00:11:22:33:44:55	2437	-65	[WPA2-PSK-CCMP][ESS]	MyNetwork
+#+end_example
+
+Take field 1 (BSSID) and field 3 (signal in dBm).
+
+** iwd
+iwd has no scriptable way to list per-AP BSSIDs (=iwctl station <iface>
+get-networks= shows SSIDs and aggregated signal, not BSSIDs). On an iwd system,
+use =iw= below — it works regardless of the network manager.
+
+** Any Linux (iw, the low-level tool)
+=iw= talks to the kernel directly (nl80211), so it works under NetworkManager,
+iwd, wpa_supplicant, or networkd. Triggering a scan needs root.
+
+#+begin_src sh
+  sudo iw dev wlan0 scan | grep -E "^BSS|signal:"
+#+end_src
+
+#+begin_example
+  BSS 00:11:22:33:44:55(on wlan0)
+  	signal: -65.00 dBm
+#+end_example
+
+Pair each =BSS <bssid>= line with the =signal: <dBm>= line that follows it.
+
+** macOS
+macOS restricts WiFi scanning. The old =airport -s= was removed in macOS 14, and
+=system_profiler SPAirPortDataType= redacts BSSIDs unless the calling process has
+Location Services permission. The reliable path today is a small CoreWLAN helper
+(Swift/PyObjC) that, with Location Services granted, reads =CWInterface
+scanForNetworksWithName= and returns each network's =bssid= and =rssiValue=
+(dBm). Treat macOS as needing that helper rather than a one-liner.
+
+* Setting up a Google API key
+
+1. Create a project in the Google Cloud console (https://console.cloud.google.com/).
+2. Enable the "Geolocation API" for that project.
+3. Create an API key (APIs & Services -> Credentials -> Create credentials -> API key).
+   Restrict it to the Geolocation API.
+4. Note Google's pricing: the Geolocation API is a paid API with a monthly free
+   allowance. Review current terms before relying on it.
+5. Make the key available to the command. The script checks the environment
+   first, then ~~/.authinfo.gpg~; use whichever you prefer.
+
+** Option A: an environment variable
+
+#+begin_src sh
+  export GOOGLE_GEOLOCATION_API_KEY="your-key-here"
+#+end_src
+
+Put it somewhere your Emacs inherits it (a login shell profile). The script reads
+~GOOGLE_GEOLOCATION_API_KEY~ and never stores the key.
+
+** Option B: ~/.authinfo.gpg (encrypted, recommended)
+
+Keep the key in the same encrypted store Emacs's auth-source uses. The script
+reads it whenever the environment variable is unset.
+
+1. Open ~~/.authinfo.gpg~ in Emacs. It decrypts transparently for editing. (If
+   the file doesn't exist, create it; Emacs encrypts it on save once your GnuPG
+   key is set up.)
+2. Add one netrc-style line:
+
+#+begin_src authinfo
+  machine googleapis.com login geolocation password YOUR-KEY-HERE
+#+end_src
+
+3. Save the buffer. Emacs re-encrypts the file.
+4. Confirm gpg can read it without prompting (gpg-agent caches the passphrase):
+
+#+begin_src sh
+  gpg --quiet --decrypt ~/.authinfo.gpg | grep googleapis.com
+#+end_src
+
+The ~login~ field (~geolocation~) is just a label. The script matches on
+~machine googleapis.com~ and uses the ~password~ value; the key is never printed
+or written in plaintext.
+
+* Testing an adapter by hand
+
+Run it in a terminal and check the JSON:
+
+#+begin_src sh
+  ./google-geolocate.py
+  # {"lat": 41.3222, "lng": -71.8113, "accuracy_m": 25.0, "address": "..."}
+#+end_src
+
+If it prints coordinates near you, point ~wttrin-geolocation-command~ at it and
+pick "Current location (detect)" in ~M-x wttrin~.

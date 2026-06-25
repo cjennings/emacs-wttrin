@@ -236,7 +236,7 @@ call retries."
     (setq wttrin--favorite-location-pending t)
     (require 'wttrin-geolocation)
     (wttrin-geolocation-detect
-     (lambda (location)
+     (lambda (location &optional _address)
        (setq wttrin--favorite-location-pending nil)
        (when location
          (setq wttrin--resolved-favorite-location location)
@@ -631,9 +631,9 @@ can fall back to typing a city in the picker."
     (require 'wttrin-geolocation)
     (message "Detecting location...")
     (wttrin-geolocation-detect
-     (lambda (location)
+     (lambda (location &optional address)
        (if location
-           (wttrin-query location)
+           (wttrin-query location address)
          (message "Could not detect location (network or provider error)"))))))
 
 (defun wttrin--query-selection (selection)
@@ -765,10 +765,20 @@ Looks up the cache timestamp for LOCATION and formats a line like
         (propertize (format "Last updated: %s (%s)" (string-trim time-str) age-str)
                     'face 'wttrin-staleness-header)))))
 
-(defun wttrin--display-weather (location-name raw-string &optional error-msg)
+(defun wttrin--format-location-line (address)
+  "Return a propertized \"Location: ADDRESS\" line, or nil when ADDRESS is empty.
+Shown in the weather buffer when a geolocation command supplied a human-readable
+place name alongside its coordinates, so the resolved location is recognizable
+even though the weather was fetched by raw coordinates."
+  (when (and (stringp address) (> (length address) 0))
+    (propertize (concat "Location: " address) 'face 'wttrin-staleness-header)))
+
+(defun wttrin--display-weather (location-name raw-string &optional error-msg address)
   "Display weather data RAW-STRING for LOCATION-NAME in weather buffer.
 When ERROR-MSG is provided and data is invalid, show that instead of
-the generic error message."
+the generic error message.  When ADDRESS is non-empty, show it on a
+\"Location:\" line below the weather (used by the geolocation command path,
+which fetches by coordinates but can name the place)."
   (when wttrin-debug
     (wttrin--save-debug-data location-name raw-string))
 
@@ -795,6 +805,9 @@ the generic error message."
         (goto-char (point-min))
         (when (re-search-forward "^Weather report: .*$" nil t)
           (replace-match (concat "Weather report: " location-name)))
+        (let ((location-line (wttrin--format-location-line address)))
+          (when location-line
+            (insert "\n" location-line)))
         (let ((staleness (wttrin--format-staleness-header location-name)))
           (when staleness
             (insert "\n" staleness)))
@@ -804,8 +817,11 @@ the generic error message."
       (setq-local wttrin--current-location location-name)
       (wttrin--debug-mode-line-info))))
 
-(defun wttrin-query (location-name)
-  "Asynchronously query weather of LOCATION-NAME, display result when ready."
+(defun wttrin-query (location-name &optional address)
+  "Asynchronously query weather of LOCATION-NAME, display result when ready.
+LOCATION-NAME is what weather is fetched by (and the cache key).  Optional
+ADDRESS is a human-readable place name shown on a \"Location:\" line, used when
+LOCATION-NAME is raw coordinates from a geolocation command."
   (let ((buffer (get-buffer-create (format "*wttr.in*"))))
     (switch-to-buffer buffer)
     (setq buffer-read-only nil)
@@ -817,7 +833,7 @@ the generic error message."
      (lambda (raw-string &optional error-msg)
        (when (buffer-live-p buffer)
          (with-current-buffer buffer
-           (wttrin--display-weather location-name raw-string error-msg)))))))
+           (wttrin--display-weather location-name raw-string error-msg address)))))))
 
 (defun wttrin--make-cache-key (location)
   "Create cache key from LOCATION and current settings."
@@ -920,6 +936,29 @@ the detected city as your default."
  'wttrin-set-location-from-geolocation
  "use the \"Current location (detect)\" entry in `wttrin', then press `d' to keep it as the default."
  "0.4.0")
+
+;;;###autoload
+(defun wttrin-use-current-location ()
+  "Make your current location the persistent favorite (always auto-detect).
+Sets `wttrin-favorite-location' to t after confirmation, so the mode-line
+and buffer track wherever you are via geolocation rather than a fixed city.
+This is the labeled way to choose auto-detect without typing the bare symbol
+t into your init.
+
+With `savehist-mode' on, the choice persists across sessions automatically.
+Does nothing when `wttrin-geolocation-enabled' is nil."
+  (interactive)
+  (cond
+   ((not wttrin-geolocation-enabled)
+    (message "Geolocation is disabled (set wttrin-geolocation-enabled to enable it)"))
+   ((yes-or-no-p "Always use your current location (auto-detect via geolocation)? ")
+    (setq wttrin-favorite-location t)
+    (message "Favorite location set to auto-detect%s"
+             (if (bound-and-true-p savehist-mode)
+                 " (persisted via savehist)."
+               ". Enable savehist-mode to persist it across sessions.")))
+   (t
+    (message "Cancelled"))))
 
 (defvar-local wttrin--current-location nil
   "Current location displayed in this weather buffer.")

@@ -273,13 +273,13 @@ If you don't want to type your city by hand, wttrin can detect it for you.
 
 **Make the detected city your default:** in that weather buffer, press =d=. The detected city becomes =wttrin-favorite-location= (what the mode-line tracks). With =savehist-mode= on, the favorite persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
 
-**Always use my current location:**
+**Always use my current location:** run =M-x wttrin-use-current-location=, or set the variable directly:
 
 #+begin_src emacs-lisp
   (setq wttrin-favorite-location t)
 #+end_src
 
-When set to =t=, wttrin runs the geolocation lookup once on first use (when the mode-line first fetches, when the buffer cache first refreshes, etc.) and caches the result for the rest of the session. The lookup happens in the background, so Emacs startup isn't blocked. The first display tick shows a placeholder until the lookup returns; everything proceeds normally after that.
+When set to =t=, wttrin runs the geolocation lookup once on first use (when the mode-line first fetches, when the buffer cache first refreshes, etc.) and caches the result for the rest of the session. The lookup happens in the background, so Emacs startup isn't blocked. The first display tick shows a placeholder until the lookup returns; everything proceeds normally after that. =M-x wttrin-use-current-location= is the labeled, confirmed way to choose this without typing the bare =t=.
 
 The default lookup provider is =ipapi.co=. Two alternatives ship with the package, both free and key-less:
 
@@ -290,6 +290,22 @@ The default lookup provider is =ipapi.co=. Two alternatives ship with the packag
 #+end_src
 
 *Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
+
+**Higher accuracy via an external command:** IP geolocation only finds your network's exit point, which on a VPN or cellular hotspot can be the wrong city or state. For a more accurate fix, point =wttrin-geolocation-command= at a command that returns your coordinates as JSON:
+
+#+begin_src emacs-lisp
+  (setq wttrin-geolocation-command "your-location-script --json")
+#+end_src
+
+The command runs asynchronously and must print a JSON object with numeric =lat= and =lng= keys. It may also include an =address= (or =label=) string; when present, wttrin shows it on a "Location:" line in the weather buffer so the resolved place is readable even though the weather is fetched by raw coordinates. Any other keys are ignored. For example:
+
+#+begin_src json
+  {"lat": 41.3222, "lng": -71.8113, "address": "Westerly, Rhode Island, USA"}
+#+end_src
+
+wttrin queries wttr.in by the coordinates and lets it echo the place name in its own header. A command that scans nearby WiFi access points and looks them up (far more accurate than IP) is the typical source. The package ships no command and assumes nothing about your system, so this is inert until you set it. If the command is unset, exits non-zero, or prints no usable coordinates, wttrin falls back to the IP provider above.
+
+Two ready-to-adapt example commands live in [[file:examples/geolocation/][examples/geolocation/]]: =google-geolocate.py= (Google Geolocation API, needs a key) and =apple-wps.py= (Apple's keyless WiFi positioning, which uses an undocumented endpoint — read its caveat). Both are Python 3 standard library, scan WiFi via =nmcli=, and print the JSON described above. See that directory's README for setup.
 
 The older =M-x wttrin-set-location-from-geolocation= command still works but is deprecated in favor of the picker entry above.
 

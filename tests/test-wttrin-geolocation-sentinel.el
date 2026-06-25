@@ -115,7 +115,7 @@ through `wttrin--query-selection' (smoke test of the entry wrapper)."
         (cl-letf (((symbol-function 'wttrin-geolocation-detect)
                    (lambda (callback) (funcall callback "Austin, TX")))
                   ((symbol-function 'wttrin-query)
-                   (lambda (loc) (setq captured loc)))
+                   (lambda (loc &optional _address) (setq captured loc)))
                   ((symbol-function 'message) (lambda (&rest _) nil)))
           (wttrin--query-selection wttrin--geolocation-sentinel))
         (should (equal "Austin, TX" captured)))
