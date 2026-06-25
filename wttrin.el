@@ -168,6 +168,16 @@ When cache reaches `wttrin-cache-max-entries', remove the oldest 20%
 to avoid frequent cleanup cycles.  This value (0.20) means remove 1/5
 of entries, providing a reasonable buffer before the next cleanup.")
 
+(defcustom wttrin-geolocation-enabled t
+  "Whether geolocation features are available.
+When non-nil (the default), the \"Current location (detect)\" entry is
+offered in the picker, the `wttrin-favorite-location' = t auto-detect
+runs, and the geolocation command works.  Set to nil to opt out: no
+geolocation surface is offered and no detection request is made.
+Geolocation is on by default; you opt out, you never have to opt in."
+  :group 'wttrin
+  :type 'boolean)
+
 (defcustom wttrin-favorite-location nil
   "Favorite location to display weather for.
 
@@ -221,7 +231,8 @@ On success the resolved string is stored in
 `wttrin--resolved-favorite-location'.  Failures (network error, parse
 error) leave the cache empty and clear the pending flag, so the next
 call retries."
-  (unless wttrin--favorite-location-pending
+  (when (and wttrin-geolocation-enabled
+             (not wttrin--favorite-location-pending))
     (setq wttrin--favorite-location-pending t)
     (require 'wttrin-geolocation)
     (wttrin-geolocation-detect
@@ -549,13 +560,20 @@ would otherwise drop the entries before they could be saved."
   (wttrin--savehist-register)
   (add-hook 'savehist-save-hook #'wttrin--savehist-register))
 
+(defconst wttrin--geolocation-sentinel "Current location (detect)"
+  "Picker candidate that triggers geolocation detection.
+Selecting it routes through `wttrin--query-selection' to a
+detect-then-query flow instead of being treated as a literal place
+name.  It is never persisted to history or the cache as a location.")
+
 (defun wttrin--add-to-location-history (location)
   "Record LOCATION as a recent successful search.
-No-op when LOCATION is nil, empty, or already a default location.  An existing
-entry is promoted to most-recent, and the list is trimmed to
-`wttrin-location-history-max'."
+No-op when LOCATION is nil, empty, the geolocation sentinel, or already a
+default location.  An existing entry is promoted to most-recent, and the list
+is trimmed to `wttrin-location-history-max'."
   (when (and location
              (not (string= location ""))
+             (not (string= location wttrin--geolocation-sentinel))
              (not (member location wttrin-default-locations)))
     (setq wttrin--location-history (delete location wttrin--location-history))
     (push location wttrin--location-history)
@@ -571,11 +589,61 @@ History already excludes defaults (see `wttrin--add-to-location-history'), and
 `wttrin--set-favorite-location' drops the favorite from history.  The favorite
 \(`wttrin-favorite-location', when a string) is prepended unless it is already a
 default, so it always appears exactly once."
-  (let ((candidates (append wttrin-default-locations wttrin--location-history)))
-    (if (and (stringp wttrin-favorite-location)
-             (not (member wttrin-favorite-location candidates)))
-        (cons wttrin-favorite-location candidates)
-      candidates)))
+  (let* ((candidates (append wttrin-default-locations wttrin--location-history))
+         (with-favorite (if (and (stringp wttrin-favorite-location)
+                                 (not (member wttrin-favorite-location candidates)))
+                            (cons wttrin-favorite-location candidates)
+                          candidates)))
+    (if wttrin-geolocation-enabled
+        (cons wttrin--geolocation-sentinel with-favorite)
+      with-favorite)))
+
+(defun wttrin--sort-completions (candidates)
+  "Return CANDIDATES with the geolocation sentinel pinned first.
+The remaining candidates keep the order `wttrin--completion-candidates'
+produced (favorite, defaults, then history).  Used as the completion
+metadata `display-sort-function' so sorting UIs (vertico, icomplete, the
+default *Completions* buffer) keep the sentinel at the top instead of
+re-sorting it into alphabetical position."
+  (if (member wttrin--geolocation-sentinel candidates)
+      (cons wttrin--geolocation-sentinel
+            (remove wttrin--geolocation-sentinel candidates))
+    candidates))
+
+(defun wttrin--completion-table (candidates)
+  "Return a completion table over CANDIDATES that pins the sentinel first.
+The table answers the `metadata' action with a `display-sort-function'
+of `wttrin--sort-completions', and otherwise completes over CANDIDATES.
+Wrapping the list this way is what keeps the sentinel first across
+completion frameworks that impose their own sort order."
+  (lambda (string predicate action)
+    (if (eq action 'metadata)
+        `(metadata (display-sort-function . ,#'wttrin--sort-completions))
+      (complete-with-action action candidates string predicate))))
+
+(defun wttrin--detect-then-query ()
+  "Detect the current location asynchronously, then query weather for it.
+No-op with a message when `wttrin-geolocation-enabled' is nil.  On detection
+failure, show an actionable message and leave the favorite untouched; the user
+can fall back to typing a city in the picker."
+  (if (not wttrin-geolocation-enabled)
+      (message "Geolocation is disabled (set wttrin-geolocation-enabled to enable it)")
+    (require 'wttrin-geolocation)
+    (message "Detecting location...")
+    (wttrin-geolocation-detect
+     (lambda (location)
+       (if location
+           (wttrin-query location)
+         (message "Could not detect location (network or provider error)"))))))
+
+(defun wttrin--query-selection (selection)
+  "Route a picker SELECTION to the right query path.
+The geolocation sentinel routes to `wttrin--detect-then-query'; any other
+SELECTION is queried literally via `wttrin-query'.  This is the single guard
+that keeps the sentinel from reaching `wttrin-query' as a place name."
+  (if (string= selection wttrin--geolocation-sentinel)
+      (wttrin--detect-then-query)
+    (wttrin-query selection)))
 
 (defun wttrin-remove-location-history (location)
   "Remove LOCATION from the search history.
@@ -597,13 +665,15 @@ Prompts with completion over the current history entries."
   "Kill current weather buffer and query NEW-LOCATION."
   (when (get-buffer "*wttr.in*")
     (kill-buffer "*wttr.in*"))
-  (wttrin-query new-location))
+  (wttrin--query-selection new-location))
 
 (defun wttrin-requery ()
   "Kill buffer and requery wttrin."
   (interactive)
   (let ((new-location (completing-read
-                       "Location Name: " (wttrin--completion-candidates) nil nil
+                       "Location Name: "
+                       (wttrin--completion-table (wttrin--completion-candidates))
+                       nil nil
                        (when (= (length wttrin-default-locations) 1)
                          (car wttrin-default-locations)))))
     (wttrin--requery-location new-location)))
@@ -812,30 +882,44 @@ This creates headroom to avoid frequent cleanups."
   "Detect your location via IP geolocation and set it as the favorite.
 Uses the provider named by `wttrin-geolocation-provider' to fetch
 \"City, Region\", asks for confirmation, and on yes assigns the
-result to `wttrin-favorite-location' for this session.
+result to `wttrin-favorite-location'.
 
-To persist the setting across Emacs sessions, either run
-\\[customize-save-variable] on `wttrin-favorite-location', or add
-\(setq wttrin-favorite-location ...\) to your init file.
+With `savehist-mode' on, the favorite persists across sessions
+automatically (wttrin registers it with savehist); no
+`customize-save-variable' step is needed.
 
 IP-based geolocation can be wrong behind a VPN or a mobile hotspot.
 The confirmation prompt shows the detected location so you can
-reject inaccurate results."
+reject inaccurate results.
+
+This command is obsolete.  Prefer the \"Current location (detect)\"
+entry in \\[wttrin], then press `d' in the weather buffer to keep
+the detected city as your default."
   (interactive)
-  (require 'wttrin-geolocation)
-  (message "Detecting location...")
-  (wttrin-geolocation-detect
-   (lambda (location)
-     (cond
-      ((null location)
-       (message "Could not detect location (network or provider error)"))
-      ((yes-or-no-p (format "Detected location: %s. Set as favorite? "
-                            location))
-       (setq wttrin-favorite-location location)
-       (message "Set wttrin-favorite-location to: %s. Run M-x customize-save-variable to persist."
-                location))
-      (t
-       (message "Location detection cancelled"))))))
+  (if (not wttrin-geolocation-enabled)
+      (message "Geolocation is disabled (set wttrin-geolocation-enabled to enable it)")
+    (require 'wttrin-geolocation)
+    (message "Detecting location...")
+    (wttrin-geolocation-detect
+     (lambda (location)
+       (cond
+        ((null location)
+         (message "Could not detect location (network or provider error)"))
+        ((yes-or-no-p (format "Detected location: %s. Set as favorite? "
+                              location))
+         (setq wttrin-favorite-location location)
+         (message "Set wttrin-favorite-location to: %s%s"
+                  location
+                  (if (bound-and-true-p savehist-mode)
+                      " (persisted via savehist)."
+                    ". Enable savehist-mode to persist it across sessions.")))
+        (t
+         (message "Location detection cancelled")))))))
+
+(make-obsolete
+ 'wttrin-set-location-from-geolocation
+ "use the \"Current location (detect)\" entry in `wttrin', then press `d' to keep it as the default."
+ "0.4.0")
 
 (defvar-local wttrin--current-location nil
   "Current location displayed in this weather buffer.")
@@ -1158,10 +1242,12 @@ When enabled, shows weather for `wttrin-favorite-location'."
 Weather data is fetched asynchronously to avoid blocking Emacs."
   (interactive
    (list
-    (completing-read "Location Name: " (wttrin--completion-candidates) nil nil
+    (completing-read "Location Name: "
+                     (wttrin--completion-table (wttrin--completion-candidates))
+                     nil nil
                      (when (= (length wttrin-default-locations) 1)
                        (car wttrin-default-locations)))))
-  (wttrin-query location))
+  (wttrin--query-selection location))
 
 (when wttrin-mode-line-auto-enable
   (wttrin-mode-line-mode 1))

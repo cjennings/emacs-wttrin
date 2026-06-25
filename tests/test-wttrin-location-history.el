@@ -113,31 +113,37 @@
 ;;; wttrin--completion-candidates
 
 (ert-deftest test-wttrin-location-history-normal-candidates-defaults-then-history ()
-  "Candidates list defaults first, then history."
+  "Candidates list the sentinel, then defaults, then history."
   (test-wttrin-location-history-setup)
   (unwind-protect
-      (let ((wttrin-default-locations '("Honolulu, HI" "Berkeley, CA"))
+      (let ((wttrin-favorite-location nil)
+            (wttrin-default-locations '("Honolulu, HI" "Berkeley, CA"))
             (wttrin--location-history '("Tokyo" "Paris")))
-        (should (equal '("Honolulu, HI" "Berkeley, CA" "Tokyo" "Paris")
+        (should (equal (list wttrin--geolocation-sentinel
+                             "Honolulu, HI" "Berkeley, CA" "Tokyo" "Paris")
                        (wttrin--completion-candidates))))
     (test-wttrin-location-history-teardown)))
 
 (ert-deftest test-wttrin-location-history-normal-candidates-only-defaults ()
-  "With empty history, candidates are just the defaults."
+  "With empty history, candidates are the sentinel then the defaults."
   (test-wttrin-location-history-setup)
   (unwind-protect
-      (let ((wttrin-default-locations '("Honolulu, HI"))
+      (let ((wttrin-favorite-location nil)
+            (wttrin-default-locations '("Honolulu, HI"))
             (wttrin--location-history nil))
-        (should (equal '("Honolulu, HI") (wttrin--completion-candidates))))
+        (should (equal (list wttrin--geolocation-sentinel "Honolulu, HI")
+                       (wttrin--completion-candidates))))
     (test-wttrin-location-history-teardown)))
 
 (ert-deftest test-wttrin-location-history-normal-candidates-only-history ()
-  "With empty defaults, candidates are just the history."
+  "With empty defaults, candidates are the sentinel then the history."
   (test-wttrin-location-history-setup)
   (unwind-protect
-      (let ((wttrin-default-locations '())
+      (let ((wttrin-favorite-location nil)
+            (wttrin-default-locations '())
             (wttrin--location-history '("Tokyo")))
-        (should (equal '("Tokyo") (wttrin--completion-candidates))))
+        (should (equal (list wttrin--geolocation-sentinel "Tokyo")
+                       (wttrin--completion-candidates))))
     (test-wttrin-location-history-teardown)))
 
 ;;; wttrin-remove-location-history

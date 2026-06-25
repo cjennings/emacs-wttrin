@@ -105,6 +105,8 @@ to the core requery function."
   (test-wttrin-requery-setup)
   (unwind-protect
       (let ((offered-collection nil)
+            (wttrin-favorite-location nil)
+            (wttrin--location-history nil)
             (wttrin-default-locations '("Paris" "London" "Tokyo")))
         (cl-letf (((symbol-function 'completing-read)
                    (lambda (_prompt collection &rest _args)
@@ -113,7 +115,12 @@ to the core requery function."
                   ((symbol-function 'wttrin--requery-location)
                    (lambda (_loc) nil)))
           (wttrin-requery)
-          (should (equal offered-collection '("Paris" "London" "Tokyo")))))
+          ;; The collection is now a completion table (a function) that pins
+          ;; the sentinel first; check the candidates it completes over.
+          (should (equal (list wttrin--geolocation-sentinel
+                               "Paris" "London" "Tokyo")
+                         (wttrin--sort-completions
+                          (all-completions "" offered-collection))))))
     (test-wttrin-requery-teardown)))
 
 (ert-deftest test-wttrin-requery-boundary-single-default-prefills ()

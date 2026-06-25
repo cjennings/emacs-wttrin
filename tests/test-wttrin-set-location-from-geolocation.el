@@ -118,5 +118,34 @@
                          messages)))
     (test-wttrin-set-location-from-geolocation-teardown)))
 
+;;; Opt-out
+
+(ert-deftest test-wttrin-set-location-from-geolocation-boundary-disabled-no-detect ()
+  "Boundary: with geolocation disabled, the command neither detects nor sets."
+  (test-wttrin-set-location-from-geolocation-setup)
+  (setq wttrin-favorite-location "Pre-existing, Place")
+  (unwind-protect
+      (let ((detected nil)
+            (wttrin-geolocation-enabled nil))
+        (cl-letf (((symbol-function 'wttrin-geolocation-detect)
+                   (lambda (_cb) (setq detected t)))
+                  ((symbol-function 'message) (lambda (&rest _) nil)))
+          (wttrin-set-location-from-geolocation))
+        (should-not detected)
+        (should (string= "Pre-existing, Place" wttrin-favorite-location)))
+    (test-wttrin-set-location-from-geolocation-teardown)))
+
+;;; Deprecation
+
+(ert-deftest test-wttrin-set-location-from-geolocation-normal-marked-obsolete ()
+  "Normal: the command is marked obsolete with a steering message.
+The favorite-setting behavior is preserved (see the Normal cases above);
+this only asserts the obsolescence marker so callers get a deprecation
+notice steering them to the picker."
+  (let ((info (get 'wttrin-set-location-from-geolocation 'byte-obsolete-info)))
+    (should info)
+    ;; Option 1: a steering string, not an alias to another function.
+    (should (stringp (nth 0 info)))))
+
 (provide 'test-wttrin-set-location-from-geolocation)
 ;;; test-wttrin-set-location-from-geolocation.el ends here

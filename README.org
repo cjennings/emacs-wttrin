@@ -266,18 +266,14 @@ If a refresh fails, the emoji dims to gray and the tooltip tells you what went w
 
 *Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
 
-*** Setting the Favorite Location from IP Geolocation
-If you don't want to type your city by hand, wttrin can detect it for you. Two ways:
+*** Weather for Your Current Location
+If you don't want to type your city by hand, wttrin can detect it for you.
 
-**Manual detection with confirmation:**
+**From the picker (weather here, right now):** run =M-x wttrin= and pick the first entry, "Current location (detect)". wttrin looks up your city via IP geolocation and shows its weather. If the guess is wrong (VPN, mobile hotspot), the detected city is right there in the buffer header, so just open the picker again and type the correct city.
 
-#+begin_src emacs-lisp
-  M-x wttrin-set-location-from-geolocation
-#+end_src
+**Make the detected city your default:** in that weather buffer, press =d=. The detected city becomes =wttrin-favorite-location= (what the mode-line tracks). With =savehist-mode= on, the favorite persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
 
-This looks up your city via IP geolocation, shows the detected location, and sets =wttrin-favorite-location= after you confirm. To make the setting persist across Emacs sessions, run =M-x customize-save-variable RET wttrin-favorite-location RET=, or add =(setq wttrin-favorite-location "Your City, State")= to your init file.
-
-**Automatic detection on first use:**
+**Always use my current location:**
 
 #+begin_src emacs-lisp
   (setq wttrin-favorite-location t)
@@ -293,7 +289,15 @@ The default lookup provider is =ipapi.co=. Two alternatives ship with the packag
   (setq wttrin-geolocation-provider 'ipwhois)  ;; ipwho.is (10k/month)
 #+end_src
 
-*Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. The confirmation prompt lets you reject an inaccurate result. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
+*Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
+
+The older =M-x wttrin-set-location-from-geolocation= command still works but is deprecated in favor of the picker entry above.
+
+**Turning geolocation off:** geolocation is on by default. To opt out — no "Current location" entry in the picker, no detection requests — set:
+
+#+begin_src emacs-lisp
+  (setq wttrin-geolocation-enabled nil)
+#+end_src
 
 *** Theming the Faces
 The text wttrin draws itself uses named faces, so themes and =M-x customize-face= can restyle it. (The weather art itself is colored by the ANSI codes wttr.in returns, not by these faces.)

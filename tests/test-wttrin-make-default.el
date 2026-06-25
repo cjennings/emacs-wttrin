@@ -143,7 +143,8 @@ stale cache and fetches fresh weather for the new location immediately."
         (wttrin--location-history nil)
         (wttrin-favorite-location "Reykjavik"))
     (should (equal (wttrin--completion-candidates)
-                   '("Reykjavik" "Honolulu, HI" "Berkeley, CA")))))
+                   (list wttrin--geolocation-sentinel
+                         "Reykjavik" "Honolulu, HI" "Berkeley, CA")))))
 
 ;;; Boundary Cases
 
@@ -161,7 +162,7 @@ stale cache and fetches fresh weather for the new location immediately."
         (wttrin--location-history '("Oslo, NO"))
         (wttrin-favorite-location nil))
     (should (equal (wttrin--completion-candidates)
-                   '("Honolulu, HI" "Oslo, NO")))))
+                   (list wttrin--geolocation-sentinel "Honolulu, HI" "Oslo, NO")))))
 
 ;;; --------------------------------------------------------------------------
 ;;; keymap binding
