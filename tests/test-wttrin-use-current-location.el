@@ -52,6 +52,27 @@
         (should (equal "Berkeley, CA" wttrin-favorite-location)))
     (test-wttrin-use-current-location-teardown)))
 
+(ert-deftest test-wttrin-use-current-location-normal-confirm-refreshes-mode-line ()
+  "Normal: confirming refreshes the mode-line so it switches to the current
+location immediately rather than at the next scheduled fetch."
+  (test-wttrin-use-current-location-setup)
+  (setq wttrin-favorite-location "Berkeley, CA")
+  (unwind-protect
+      (let ((wttrin-geolocation-enabled t)
+            (wttrin-mode-line-mode t)
+            (wttrin--location-history nil)
+            (fetched nil))
+        (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                  ((symbol-function 'message) (lambda (&rest _) nil))
+                  ((symbol-function 'wttrin--mode-line-fetch-weather)
+                   (lambda () (setq fetched t)))
+                  ((symbol-function 'wttrin--mode-line-set-placeholder)
+                   (lambda () nil)))
+          (wttrin-use-current-location))
+        (should (eq t wttrin-favorite-location))
+        (should fetched))
+    (test-wttrin-use-current-location-teardown)))
+
 ;;; Boundary / Error Cases
 
 (ert-deftest test-wttrin-use-current-location-boundary-disabled-no-prompt-no-set ()

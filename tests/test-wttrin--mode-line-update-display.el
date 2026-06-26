@@ -252,6 +252,30 @@ trigger an emoji re-render so dimming matches the tooltip's staleness state."
           (should wttrin-mode-line-string)))
     (test-wttrin--mode-line-update-display-teardown)))
 
+(ert-deftest test-wttrin--mode-line-fetch-weather-normal-saved-name-shown-in-cache ()
+  "Normal: a saved-name favorite caches its display name, not the resolved query.
+The query (coordinates or an address) drives the fetch, but the hover tooltip
+should read the friendly name the user gave the place."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-saved-locations '(("Mom's House" . "40.71,-74.01")))
+            (wttrin-favorite-location "Mom's House"))
+        (testutil-wttrin-mock-http-response "40.71,-74.01: ☀️ +70°F Cloudy"
+          (wttrin--mode-line-fetch-weather)
+          (should (string-prefix-p "Mom's House:" (cdr wttrin--mode-line-cache)))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
+(ert-deftest test-wttrin--mode-line-fetch-weather-boundary-plain-location-unchanged ()
+  "Boundary: a plain (non-saved) favorite still caches its own name as the prefix."
+  (test-wttrin--mode-line-update-display-setup)
+  (unwind-protect
+      (let ((wttrin-saved-locations nil)
+            (wttrin-favorite-location "Paris"))
+        (testutil-wttrin-mock-http-response "Paris: ☀️ +61°F Clear"
+          (wttrin--mode-line-fetch-weather)
+          (should (string-prefix-p "Paris:" (cdr wttrin--mode-line-cache)))))
+    (test-wttrin--mode-line-update-display-teardown)))
+
 (ert-deftest test-wttrin--mode-line-fetch-weather-error-empty-response-keeps-previous ()
   "Empty API response does not overwrite previous valid cache."
   (test-wttrin--mode-line-update-display-setup)

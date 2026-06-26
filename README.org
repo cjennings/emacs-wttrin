@@ -106,9 +106,9 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 [[assets/location-menu.png]]
 
-Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, you can press `a` to check another location, `g` to refresh, `d` to make the shown location your default, or `q` to quit.
+Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, the footer shows two groups of keys. Keys that act on the view: `a` for another location, `g` to refresh, `q` to quit. Keys that act on your saved locations: `s` to save the shown location, `d` to make it your default, `r` to rename a saved location, and `x` to remove one.
 
-Pressing `d` sets =wttrin-favorite-location= to the location on screen and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick.
+Pressing `d` sets =wttrin-favorite-location= to the location on screen and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick. (On a geolocation-detected buffer, `d` first prompts for a name and saves it — see Naming Locations.)
 
 If you're looking at cached data, a line below the weather art tells you how old it is (e.g., "Last updated: 2:30 PM (5 minutes ago)").
 
@@ -133,7 +133,7 @@ Most people will just want to add a bunch of cities to the location list. Howeve
 
 *** Location Search History
 
-Locations you search successfully are remembered and offered as completion candidates the next time you run =M-x wttrin=, listed after your configured defaults. Only successful lookups are saved, so typos and not-found locations never enter the history. A location already in =wttrin-default-locations= is not duplicated into the history.
+Locations you search successfully are remembered and offered as completion candidates the next time you run =M-x wttrin=, after your saved and default locations. Only successful lookups are saved, so typos and not-found locations never enter the history. Entries already offered elsewhere are not duplicated into the history: defaults, saved-location names (see Naming Locations), and raw =lat,lng= coordinates from geolocation are all kept out.
 
 History is capped at =wttrin-location-history-max= entries (default 20); the oldest fall off as new ones arrive.
 
@@ -305,6 +305,10 @@ The command runs asynchronously and must print a JSON object with numeric =lat= 
 
 wttrin queries wttr.in by the coordinates and lets it echo the place name in its own header. A command that scans nearby WiFi access points and looks them up (far more accurate than IP) is the typical source. The package ships no command and assumes nothing about your system, so this is inert until you set it. If the command is unset, exits non-zero, or prints no usable coordinates, wttrin falls back to the IP provider above.
 
+The resolved coordinates show in the header, with the readable place on the "Location:" line below:
+
+[[assets/geolocation.png]]
+
 Two ready-to-adapt example commands live in [[file:examples/geolocation/][examples/geolocation/]]: =google-geolocate.py= (Google Geolocation API, needs a key) and =apple-wps.py= (Apple's keyless WiFi positioning, which uses an undocumented endpoint — read its caveat). Both are Python 3 standard library, scan WiFi via =nmcli=, and print the JSON described above. See that directory's README for setup.
 
 The older =M-x wttrin-set-location-from-geolocation= command still works but is deprecated in favor of the picker entry above.
@@ -315,15 +319,45 @@ The older =M-x wttrin-set-location-from-geolocation= command still works but is 
   (setq wttrin-geolocation-enabled nil)
 #+end_src
 
+*** Naming Locations
+A saved location has a friendly name and a separate query: =wttrin= shows the name in the picker, the buffer header, and the mode-line, but fetches weather for the query. That lets a precise query hide behind a readable name — "Craig's House" rather than "1500 Sugar Bowl Dr, New Orleans". The query can be a city, a full address, or =lat,lng= coordinates.
+
+Set them in your init:
+
+#+begin_src emacs-lisp
+  (setq wttrin-saved-locations
+        '(("Craig's House" . "1500 Sugar Bowl Dr, New Orleans")
+          ("Home"          . "41.37,-71.83")))
+#+end_src
+
+Or build the directory interactively:
+
+- =M-x wttrin-save-location= — save the place in the current weather buffer (or a typed query) under a name. Saving an existing name updates its query.
+- =M-x wttrin-rename-location= — rename an entry (refused if the new name is already taken).
+- =M-x wttrin-remove-location= — remove an entry (asks to confirm).
+
+The directory persists across sessions with =savehist-mode= on (=wttrin= registers it), the same as your favorite and history.
+
+You can point =wttrin-favorite-location= at a saved name (e.g. ="Craig's House"=): the mode-line resolves it to the query for fetching but shows the name in the tooltip.
+
+When you pick "Current location (detect)" and press =d= to keep it, =wttrin= prompts for a name (prefilled with the detected address) and saves it as a named location, then makes it your default. Clear the field and press RET to keep the raw coordinates instead. Raw coordinates never clutter your history; only named places are remembered.
+
+*Privacy:* a saved query can be a home or work street address, kept in plaintext in your savehist file. With =wttrin-debug= on, the query and raw responses are also written to the debug log. =wttrin= does not encrypt or redact these, so save what you're comfortable storing in plain text.
+
 *** Theming the Faces
 The text wttrin draws itself uses named faces, so themes and =M-x customize-face= can restyle it. (The weather art itself is colored by the ANSI codes wttr.in returns, not by these faces.)
 
-| Face                      | Styles                                               | Default           |
-|---------------------------+------------------------------------------------------+-------------------|
-| =wttrin-mode-line-stale=  | the mode-line emoji when its data has gone stale     | inherits =shadow= |
-| =wttrin-staleness-header= | the "Last updated: ..." line in the weather buffer   | inherits =shadow= |
-| =wttrin-instructions=     | the key-hint footer prose in the weather buffer      | inherits =shadow= |
-| =wttrin-key=              | the bracketed key chords ([a] [g] [q]) in the footer | inherits =bold=   |
+| Face                         | Styles                                     | Default                  |
+|------------------------------+--------------------------------------------+--------------------------|
+| =wttrin-mode-line-stale=     | the mode-line emoji when its data is stale | inherits =shadow=        |
+|------------------------------+--------------------------------------------+--------------------------|
+| =wttrin-staleness-header=    | the "Last updated:" and "Location:" lines  | inherits =shadow=        |
+|------------------------------+--------------------------------------------+--------------------------|
+| =wttrin-instructions=        | the footer key labels                      | inherits =shadow=        |
+|------------------------------+--------------------------------------------+--------------------------|
+| =wttrin-instructions-header= | the footer column headers                  | inherits =(bold shadow)= |
+|------------------------------+--------------------------------------------+--------------------------|
+| =wttrin-key=                 | the bracketed key chords ([a] [g] [q])     | inherits =bold=          |
 
 Restyle them in your init file like any other face:
 

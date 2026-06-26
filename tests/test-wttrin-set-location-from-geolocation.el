@@ -65,6 +65,29 @@
         (should (string= "Pre-existing, Place" wttrin-favorite-location)))
     (test-wttrin-set-location-from-geolocation-teardown)))
 
+(ert-deftest test-wttrin-set-location-from-geolocation-normal-confirm-refreshes-mode-line ()
+  "Normal: a confirmed detection refreshes the mode-line so it tracks the new
+favorite immediately instead of at the next scheduled fetch."
+  (test-wttrin-set-location-from-geolocation-setup)
+  (setq wttrin-favorite-location "Pre-existing, Place")
+  (unwind-protect
+      (let ((wttrin-geolocation-enabled t)
+            (wttrin-mode-line-mode t)
+            (wttrin--location-history nil)
+            (fetched nil))
+        (cl-letf (((symbol-function 'wttrin-geolocation-detect)
+                   (lambda (callback) (funcall callback "Berkeley, California")))
+                  ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                  ((symbol-function 'message) (lambda (&rest _) nil))
+                  ((symbol-function 'wttrin--mode-line-fetch-weather)
+                   (lambda () (setq fetched t)))
+                  ((symbol-function 'wttrin--mode-line-set-placeholder)
+                   (lambda () nil)))
+          (wttrin-set-location-from-geolocation))
+        (should (string= "Berkeley, California" wttrin-favorite-location))
+        (should fetched))
+    (test-wttrin-set-location-from-geolocation-teardown)))
+
 ;;; Boundary Cases
 
 (ert-deftest test-wttrin-set-location-from-geolocation-boundary-unicode-location ()

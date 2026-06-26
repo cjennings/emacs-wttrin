@@ -35,7 +35,7 @@
   (unwind-protect
       (let ((queried-location nil))
         (cl-letf (((symbol-function 'wttrin-query)
-                   (lambda (location) (setq queried-location location))))
+                   (lambda (location &rest _) (setq queried-location location))))
           ;; Set up a weather buffer with a known location
           (with-current-buffer (get-buffer-create "*wttr.in*")
             (setq-local wttrin--current-location "Berlin, DE")
@@ -49,7 +49,7 @@
   (unwind-protect
       (let ((force-refresh-was-set nil))
         (cl-letf (((symbol-function 'wttrin-query)
-                   (lambda (_location)
+                   (lambda (_location &rest _)
                      (setq force-refresh-was-set wttrin--force-refresh))))
           (with-current-buffer (get-buffer-create "*wttr.in*")
             (setq-local wttrin--current-location "Paris")
@@ -76,7 +76,7 @@
   (test-wttrin-requery-force-setup)
   (unwind-protect
       (progn
-        (cl-letf (((symbol-function 'wttrin-query) (lambda (_location) nil)))
+        (cl-letf (((symbol-function 'wttrin-query) (lambda (_location &rest _) nil)))
           (with-current-buffer (get-buffer-create "*wttr.in*")
             (setq-local wttrin--current-location "Paris")
             (wttrin-requery-force)))

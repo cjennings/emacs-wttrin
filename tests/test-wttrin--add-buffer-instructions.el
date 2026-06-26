@@ -14,6 +14,17 @@
 
 ;;; Setup and Teardown
 
+(defun test-wttrin--expected-footer ()
+  "Return the footer string `wttrin--add-buffer-instructions' should produce.
+Width 23 is pinned here as a literal, independent of the production
+constant, so the test fails if the visible layout drifts."
+  (concat "\n\n"
+          (format "%-23s%s" "This view" "Saved locations") "\n"
+          (format "%-23s%s" "[a] another" "[s] save") "\n"
+          (format "%-23s%s" "[g] refresh" "[d] make default") "\n"
+          (format "%-23s%s" "[q] quit" "[r] rename") "\n"
+          (format "%-23s%s" "" "[x] remove")))
+
 (defun test-wttrin--add-buffer-instructions-setup ()
   "Setup for add-buffer-instructions tests."
   (testutil-wttrin-setup))
@@ -28,7 +39,7 @@
   "Test adding instructions to empty buffer."
   (with-temp-buffer
     (wttrin--add-buffer-instructions)
-    (should (string= "\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
+    (should (string= (test-wttrin--expected-footer)
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-normal-with-existing-content-appends-instructions ()
@@ -36,7 +47,8 @@
   (with-temp-buffer
     (insert "Weather: Sunny\nTemperature: 20°C")
     (wttrin--add-buffer-instructions)
-    (should (string= "Weather: Sunny\nTemperature: 20°C\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
+    (should (string= (concat "Weather: Sunny\nTemperature: 20°C"
+                             (test-wttrin--expected-footer))
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-normal-preserves-point-moves-to-end ()
@@ -56,12 +68,12 @@
       (wttrin--add-buffer-instructions)
       ;; Should add instructions again, not check if they already exist
       (should-not (string= first-result (buffer-string)))
-      ;; Check for two occurrences of "Press:" by counting matches
+      ;; Check for two occurrences of the header by counting matches
       (let ((count 0))
         (with-temp-buffer
           (insert first-result)
           (goto-char (point-min))
-          (while (search-forward "Press:" nil t)
+          (while (search-forward "This view" nil t)
             (setq count (1+ count))))
         ;; After first call, should have 1 occurrence
         (should (= 1 count)))
@@ -69,7 +81,7 @@
       (let ((count 0))
         (save-excursion
           (goto-char (point-min))
-          (while (search-forward "Press:" nil t)
+          (while (search-forward "This view" nil t)
             (setq count (1+ count))))
         (should (= 2 count))))))
 
@@ -88,7 +100,7 @@
   (with-temp-buffer
     (wttrin--add-buffer-instructions)
     (goto-char (point-min))
-    (search-forward "Press:")
+    (search-forward "another")
     (should (eq (get-text-property (1- (point)) 'face) 'wttrin-instructions))))
 
 ;;; Boundary Cases
@@ -99,7 +111,7 @@
     (insert "Weather data here")
     (goto-char (point-min))
     (wttrin--add-buffer-instructions)
-    (should (string-suffix-p "Press: [a] for another location [g] to refresh [d] to make default [q] to quit"
+    (should (string-suffix-p "[x] remove"
                              (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-point-in-middle-appends-at-end ()
@@ -109,7 +121,7 @@
     (goto-char (point-min))
     (forward-line 1)
     (wttrin--add-buffer-instructions)
-    (should (string-suffix-p "Press: [a] for another location [g] to refresh [d] to make default [q] to quit"
+    (should (string-suffix-p "[x] remove"
                              (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-trailing-newlines-preserves-newlines ()
@@ -117,7 +129,7 @@
   (with-temp-buffer
     (insert "Weather\n\n\n")
     (wttrin--add-buffer-instructions)
-    (should (string= "Weather\n\n\n\n\nPress: [a] for another location [g] to refresh [d] to make default [q] to quit"
+    (should (string= (concat "Weather\n\n\n" (test-wttrin--expected-footer))
                      (buffer-string)))))
 
 (ert-deftest test-wttrin--add-buffer-instructions-boundary-very-large-buffer-appends-at-end ()
@@ -126,7 +138,7 @@
     (insert (make-string 10000 ?x))
     (wttrin--add-buffer-instructions)
     (goto-char (point-max))
-    (should (looking-back "Press: \\[a\\] for another location \\[g\\] to refresh \\[d\\] to make default \\[q\\] to quit" nil))))
+    (should (looking-back "\\[x\\] remove" nil))))
 
 ;;; Error Cases
 
@@ -152,7 +164,7 @@
       (widen)
       (goto-char start)
       (forward-line 1)
-      (should (looking-at-p "\n\nPress:")))))
+      (should (looking-at-p "\n\nThis view")))))
 
 (provide 'test-wttrin--add-buffer-instructions)
 ;;; test-wttrin--add-buffer-instructions.el ends here

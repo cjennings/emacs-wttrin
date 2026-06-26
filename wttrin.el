@@ -83,6 +83,13 @@ visible on monochrome glyphs."
 Emacs 28+, and wttrin supports 24.4, so the default inherits `bold'."
   :group 'wttrin)
 
+(defface wttrin-instructions-header
+  '((t :inherit (bold shadow)))
+  "Face for the two column headers in the weather buffer footer.
+Styles the \"This view\" and \"Saved locations\" labels that head the
+two key-hint columns."
+  :group 'wttrin)
+
 (defcustom wttrin-font-name "Liberation Mono"
   "Preferred monospaced font name for weather display."
   :group 'wttrin
@@ -197,6 +204,23 @@ or a mobile hotspot — use a string if you need accuracy."
                  (const :tag "Auto-detect via geolocation" t)
                  (string :tag "Location")))
 
+(defcustom wttrin-saved-locations nil
+  "Directory of named locations, an alist of (NAME . QUERY) string conses.
+NAME is what shows in the picker, the buffer header, and the mode-line.  QUERY
+is what wttr.in is fetched with: a city, a street address, or \"lat,lng\"
+coordinates.  For example:
+
+  ((\"Craig's House\" . \"1500 Sugar Bowl Dr, New Orleans\")
+   (\"Home\" . \"41.37,-71.83\"))
+
+A bare string S used anywhere a location is expected is shorthand for
+\(S . S) — name and query the same.  Persisted across sessions via
+`savehist-mode'; add entries interactively with \\[wttrin-save-location] or the
+`d' key in a weather buffer, or set this in your init."
+  :group 'wttrin
+  :type '(alist :key-type (string :tag "Name")
+                :value-type (string :tag "Query")))
+
 (defvar wttrin--resolved-favorite-location nil
   "Cached geolocation result for `wttrin-favorite-location' = t.
 Holds the resolved \"City, Region\" string so subsequent reads
@@ -208,17 +232,19 @@ Prevents duplicate concurrent lookups when several consumers ask
 during the resolution window.")
 
 (defun wttrin--resolve-favorite-location ()
-  "Return the favorite location as a string, or nil if unavailable.
+  "Return the favorite location's query string, or nil if unavailable.
 Resolves `wttrin-favorite-location' across the three modes:
 - nil      -> nil (disabled)
-- a string -> the string as-is
+- a string -> its saved-locations query when the string is a saved name,
+              otherwise the string as-is (the query for a plain location)
 - t        -> the cached geolocation result.  When the cache is empty
               and no lookup is in flight, kicks off an async detect
               and returns nil for this call.  The next call after the
               lookup completes returns the resolved string."
   (cond
    ((null wttrin-favorite-location) nil)
-   ((stringp wttrin-favorite-location) wttrin-favorite-location)
+   ((stringp wttrin-favorite-location)
+    (wttrin--resolve-location-query wttrin-favorite-location))
    ((eq wttrin-favorite-location t)
     (or wttrin--resolved-favorite-location
         (progn
@@ -245,11 +271,14 @@ call retries."
 
 (defun wttrin--favorite-location-display-name ()
   "Return a human-readable name for the favorite location.
-Returns the resolved string when available; otherwise returns
-\"current location\" if auto-detect is configured but pending,
-or nil if the favorite is disabled."
-  (or (wttrin--resolve-favorite-location)
-      (when (eq wttrin-favorite-location t) "current location")))
+For a string favorite this is the string itself (a saved-location name shows as
+its name, not its resolved query).  For t it is the resolved geolocation place,
+or \"current location\" while a lookup is pending.  Nil when disabled."
+  (cond
+   ((stringp wttrin-favorite-location) wttrin-favorite-location)
+   ((eq wttrin-favorite-location t)
+    (or wttrin--resolved-favorite-location "current location"))
+   (t nil)))
 
 (defcustom wttrin-mode-line-refresh-interval 3600
   "Interval in seconds to refresh mode-line weather data.
@@ -548,13 +577,15 @@ Persisted across sessions via `savehist-mode'.")
 
 (defun wttrin--savehist-register ()
   "Ensure wttrin's persisted variables are saved by savehist.
-Registers `wttrin--location-history' and `wttrin-favorite-location' so both
-survive across restarts without the Emacs custom-variable mechanism.
+Registers `wttrin--location-history', `wttrin-favorite-location', and
+`wttrin-saved-locations' so they survive across restarts without the Emacs
+custom-variable mechanism.
 Run both at load and on `savehist-save-hook', so the registration survives a
 user `setq' of `savehist-additional-variables' (a common config pattern) that
 would otherwise drop the entries before they could be saved."
   (add-to-list 'savehist-additional-variables 'wttrin--location-history)
-  (add-to-list 'savehist-additional-variables 'wttrin-favorite-location))
+  (add-to-list 'savehist-additional-variables 'wttrin-favorite-location)
+  (add-to-list 'savehist-additional-variables 'wttrin-saved-locations))
 
 (with-eval-after-load 'savehist
   (wttrin--savehist-register)
@@ -568,13 +599,17 @@ name.  It is never persisted to history or the cache as a location.")
 
 (defun wttrin--add-to-location-history (location)
   "Record LOCATION as a recent successful search.
-No-op when LOCATION is nil, empty, the geolocation sentinel, or already a
-default location.  An existing entry is promoted to most-recent, and the list
-is trimmed to `wttrin-location-history-max'."
+No-op when LOCATION is nil, empty, the geolocation sentinel, raw \"LAT,LNG\"
+coordinates, a default location, or a saved-directory name (coordinates jitter
+and saved names are already offered via the directory).  An existing entry is
+promoted to most-recent, and the list is trimmed to
+`wttrin-location-history-max'."
   (when (and location
              (not (string= location ""))
              (not (string= location wttrin--geolocation-sentinel))
-             (not (member location wttrin-default-locations)))
+             (not (wttrin--coordinates-p location))
+             (not (member location wttrin-default-locations))
+             (not (assoc location (wttrin--saved-locations))))
     (setq wttrin--location-history (delete location wttrin--location-history))
     (push location wttrin--location-history)
     (let ((max (max 0 wttrin-location-history-max)))
@@ -583,20 +618,110 @@ is trimmed to `wttrin-location-history-max'."
               (butlast wttrin--location-history
                        (- (length wttrin--location-history) max)))))))
 
+(defun wttrin--saved-locations ()
+  "Return `wttrin-saved-locations' as a clean list of (NAME . QUERY) pairs.
+Skips malformed entries — non-cons, a non-string name or query, or an empty
+name or query — and trims surrounding whitespace, so stale or hand-edited
+config never errors.  A bare string S is read as (S . S)."
+  (delq nil
+        (mapcar
+         (lambda (entry)
+           (cond
+            ((and (consp entry) (stringp (car entry)) (stringp (cdr entry)))
+             (let ((name (string-trim (car entry)))
+                   (query (string-trim (cdr entry))))
+               (and (> (length name) 0) (> (length query) 0) (cons name query))))
+            ((stringp entry)
+             (let ((s (string-trim entry)))
+               (and (> (length s) 0) (cons s s))))
+            (t nil)))
+         wttrin-saved-locations)))
+
+(defun wttrin--resolve-location-query (selection)
+  "Return the query string for a picker SELECTION.
+When SELECTION is a saved-location name, return its query; otherwise return
+SELECTION unchanged, so typed, default, and history strings pass through."
+  (or (cdr (assoc selection (wttrin--saved-locations)))
+      selection))
+
+(defun wttrin--coordinates-p (string)
+  "Return non-nil when STRING looks like \"LAT,LNG\" coordinates.
+Used to keep a raw geolocation fix out of history and to decide when the
+`d' key should prompt for a name instead of promoting coordinates directly."
+  (and (stringp string)
+       (string-match-p "\\`[ ]*-?[0-9.]+[ ]*,[ ]*-?[0-9.]+[ ]*\\'" string)))
+
+(defun wttrin--saved-locations-without (name)
+  "Return `wttrin-saved-locations' with any entry named NAME removed."
+  (delq nil
+        (mapcar (lambda (entry)
+                  (unless (and (consp entry) (equal (car entry) name)) entry))
+                wttrin-saved-locations)))
+
+(defun wttrin--put-saved-location (name query)
+  "Add or update NAME -> QUERY in `wttrin-saved-locations'; return the saved name.
+Trims NAME and QUERY.  Signals a `user-error' for an empty name or query, or a
+name equal to the geolocation sentinel.  An existing name has its query updated."
+  (let ((name (string-trim (or name "")))
+        (query (string-trim (or query ""))))
+    (when (string= name "") (user-error "Location name cannot be empty"))
+    (when (string= query "") (user-error "Location query cannot be empty"))
+    (when (string= name wttrin--geolocation-sentinel)
+      (user-error "That name is reserved for the geolocation entry"))
+    (setq wttrin-saved-locations
+          (append (wttrin--saved-locations-without name)
+                  (list (cons name query))))
+    name))
+
+(defun wttrin--remove-saved-location (name)
+  "Remove the saved location named NAME from `wttrin-saved-locations'."
+  (setq wttrin-saved-locations (wttrin--saved-locations-without name)))
+
+(defvar-local wttrin--current-location nil
+  "Query for the weather shown in this buffer (the fetch/cache identity).")
+
+(defvar-local wttrin--current-display nil
+  "Display name for the weather shown in this buffer (a saved-location name).
+Falls back to the query when there is no distinct name.")
+
+(defvar-local wttrin--current-address nil
+  "Resolved address for this buffer, shown on the \"Location:\" line.
+Set by the geolocation command path; nil otherwise.")
+
+(defun wttrin--location-name-prefill ()
+  "Best prefill for naming the current buffer's place when saving it.
+An existing alias name (a display distinct from the query), else the detected
+address, else the query.  Shared by the save command and the `d' key so both
+offer the same starting text."
+  (or (and wttrin--current-display
+           (not (equal wttrin--current-display wttrin--current-location))
+           wttrin--current-display)
+      wttrin--current-address
+      wttrin--current-location))
+
+(defun wttrin--current-saved-name ()
+  "Return this buffer's display name when it names a saved location, else nil.
+Lets the rename and remove commands default to the place on screen."
+  (and wttrin--current-display
+       (assoc wttrin--current-display (wttrin--saved-locations))
+       wttrin--current-display))
+
 (defun wttrin--completion-candidates ()
-  "Return the favorite, default locations, then search-history entries.
-History already excludes defaults (see `wttrin--add-to-location-history'), and
-`wttrin--set-favorite-location' drops the favorite from history.  The favorite
-\(`wttrin-favorite-location', when a string) is prepended unless it is already a
-default, so it always appears exactly once."
-  (let* ((candidates (append wttrin-default-locations wttrin--location-history))
-         (with-favorite (if (and (stringp wttrin-favorite-location)
-                                 (not (member wttrin-favorite-location candidates)))
-                            (cons wttrin-favorite-location candidates)
-                          candidates)))
+  "Return picker candidates: saved names, the favorite, defaults, then history.
+De-duplicated by display string with precedence saved > favorite > defaults >
+history (the explicit alias wins over a same-named default or history string),
+so each place appears exactly once.  The geolocation sentinel is prepended when
+geolocation is enabled."
+  (let* ((saved (mapcar #'car (wttrin--saved-locations)))
+         (favorite (and (stringp wttrin-favorite-location)
+                        (list wttrin-favorite-location)))
+         (deduped (delete-dups
+                   (append saved favorite
+                           (copy-sequence wttrin-default-locations)
+                           (copy-sequence wttrin--location-history)))))
     (if wttrin-geolocation-enabled
-        (cons wttrin--geolocation-sentinel with-favorite)
-      with-favorite)))
+        (cons wttrin--geolocation-sentinel deduped)
+      deduped)))
 
 (defun wttrin--sort-completions (candidates)
   "Return CANDIDATES with the geolocation sentinel pinned first.
@@ -633,17 +758,19 @@ can fall back to typing a city in the picker."
     (wttrin-geolocation-detect
      (lambda (location &optional address)
        (if location
-           (wttrin-query location address)
+           (wttrin-query location nil address)
          (message "Could not detect location (network or provider error)"))))))
 
 (defun wttrin--query-selection (selection)
   "Route a picker SELECTION to the right query path.
-The geolocation sentinel routes to `wttrin--detect-then-query'; any other
-SELECTION is queried literally via `wttrin-query'.  This is the single guard
-that keeps the sentinel from reaching `wttrin-query' as a place name."
+The geolocation sentinel routes to `wttrin--detect-then-query'.  Any other
+SELECTION is resolved through the saved-locations directory to its query and
+fetched with the name shown as the display value, so an alias shows its name
+while wttr.in is hit with the target.  This is the single guard that keeps the
+sentinel from reaching `wttrin-query' as a place name."
   (if (string= selection wttrin--geolocation-sentinel)
       (wttrin--detect-then-query)
-    (wttrin-query selection)))
+    (wttrin-query (wttrin--resolve-location-query selection) selection)))
 
 (defun wttrin-remove-location-history (location)
   "Remove LOCATION from the search history.
@@ -660,6 +787,75 @@ Prompts with completion over the current history entries."
   (when (yes-or-no-p "Clear all location search history? ")
     (setq wttrin--location-history nil)
     (message "Location history cleared")))
+
+;;; Saved-location directory management
+
+;;;###autoload
+(defun wttrin-save-location (name query)
+  "Save QUERY under NAME in the saved-locations directory.
+Interactively, default QUERY to the current weather buffer's location (or
+prompt for one), and prefill the name with the buffer's display name, else its
+address, else the query.  Saving an existing name updates its query."
+  (interactive
+   (let* ((query (or wttrin--current-location
+                     (wttrin--resolve-location-query
+                      (completing-read
+                       "Save which location (query): "
+                       (wttrin--completion-table (wttrin--completion-candidates))))))
+          (name (read-string "Save location as: " (wttrin--location-name-prefill))))
+     (list name query)))
+  (if (string= (string-trim name) "")
+      (message "Cancelled")
+    (let ((existing (assoc (string-trim name) (wttrin--saved-locations)))
+          (saved (wttrin--put-saved-location name query)))
+      (message (if existing "Updated %s" "Saved %s") saved))))
+
+(defun wttrin-rename-location (old new)
+  "Rename the saved location OLD to NEW.
+Refuses when NEW already names a different entry.  When OLD is the favorite,
+the favorite is updated to NEW."
+  (interactive
+   (let* ((default (wttrin--current-saved-name))
+          (old (completing-read "Rename saved location: "
+                                (mapcar #'car (wttrin--saved-locations))
+                                nil t nil nil default))
+          (new (read-string "New name: " old)))
+     (list old new)))
+  (let ((new (string-trim new))
+        (entry (assoc old (wttrin--saved-locations))))
+    (cond
+     ((not entry) (user-error "No saved location named %s" old))
+     ((string= new "") (user-error "New name cannot be empty"))
+     ((and (not (string= new old)) (assoc new (wttrin--saved-locations)))
+      (user-error "A saved location named %s already exists" new))
+     (t
+      (let ((query (cdr entry)))
+        (wttrin--remove-saved-location old)
+        (wttrin--put-saved-location new query)
+        (when (equal wttrin-favorite-location old)
+          (wttrin--set-favorite-location new))
+        (message "Renamed %s to %s" old new))))))
+
+(defun wttrin-remove-location (name)
+  "Remove the saved location NAME from the directory, after confirmation.
+When NAME is the favorite, it is left as a literal query with a warning."
+  (interactive
+   (list (completing-read "Remove saved location: "
+                          (mapcar #'car (wttrin--saved-locations))
+                          nil t nil nil (wttrin--current-saved-name))))
+  (cond
+   ((not (assoc name (wttrin--saved-locations)))
+    (user-error "No saved location named %s" name))
+   ((yes-or-no-p (format "Remove saved location \"%s\"? " name))
+    (wttrin--remove-saved-location name)
+    (if (equal wttrin-favorite-location name)
+        (progn
+          (when (bound-and-true-p wttrin-mode-line-mode)
+            (wttrin--mode-line-refresh-now))
+          (message "Removed %s; it was your favorite and is now a literal query until you set a new one"
+                   name))
+      (message "Removed %s" name)))
+   (t (message "Cancelled"))))
 
 (defun wttrin--requery-location (new-location)
   "Kill current weather buffer and query NEW-LOCATION."
@@ -683,6 +879,9 @@ Prompts with completion over the current history entries."
     (define-key map (kbd "a") 'wttrin-requery)
     (define-key map (kbd "g") 'wttrin-requery-force)
     (define-key map (kbd "d") 'wttrin-make-default)
+    (define-key map (kbd "s") 'wttrin-save-location)
+    (define-key map (kbd "r") 'wttrin-rename-location)
+    (define-key map (kbd "x") 'wttrin-remove-location)
     ;; Note: 'q' is bound to quit-window by special-mode
     map)
   "Keymap for wttrin-mode.")
@@ -734,22 +933,52 @@ Returns processed string ready for display."
         (delete-region (line-beginning-position) (1+ (line-end-position))))
       (buffer-string))))
 
+(defconst wttrin--footer-left-width 23
+  "Visible width of the left column in the weather-buffer footer.
+The right column begins at this offset so the two columns align.")
+
+(defun wttrin--footer-cell (key label)
+  "Return a propertized \"[KEY] LABEL\" footer cell.
+The bracketed KEY uses `wttrin-key'; LABEL uses `wttrin-instructions'."
+  (concat (propertize (format "[%s]" key) 'face 'wttrin-key)
+          (propertize (format " %s" label) 'face 'wttrin-instructions)))
+
+(defun wttrin--footer-pad (cell width)
+  "Pad CELL with trailing spaces to a visible WIDTH.
+Returns CELL unchanged when it is already at least WIDTH characters wide."
+  (let ((deficit (- width (length cell))))
+    (if (> deficit 0)
+        (concat cell (make-string deficit ?\s))
+      cell)))
+
 (defun wttrin--add-buffer-instructions ()
-  "Add the key-hint footer at the bottom of the current buffer.
-Bracketed key chords use `wttrin-key'; the surrounding prose uses
-`wttrin-instructions'."
+  "Add the two-column key-hint footer at the bottom of the current buffer.
+The left column lists keys that act on the current view; the right column
+lists keys that act on the saved-locations directory.  Bracketed key chords
+use `wttrin-key', labels use `wttrin-instructions', and the column headers
+use `wttrin-instructions-header'."
   (goto-char (point-max))
   (insert "\n\n")
-  (dolist (segment '(("Press: " . wttrin-instructions)
-                     ("[a]" . wttrin-key)
-                     (" for another location " . wttrin-instructions)
-                     ("[g]" . wttrin-key)
-                     (" to refresh " . wttrin-instructions)
-                     ("[d]" . wttrin-key)
-                     (" to make default " . wttrin-instructions)
-                     ("[q]" . wttrin-key)
-                     (" to quit" . wttrin-instructions)))
-    (insert (propertize (car segment) 'face (cdr segment)))))
+  (let* ((header (concat (wttrin--footer-pad
+                          (propertize "This view" 'face 'wttrin-instructions-header)
+                          wttrin--footer-left-width)
+                         (propertize "Saved locations"
+                                     'face 'wttrin-instructions-header)))
+         (rows (list (cons (wttrin--footer-cell "a" "another")
+                           (wttrin--footer-cell "s" "save"))
+                     (cons (wttrin--footer-cell "g" "refresh")
+                           (wttrin--footer-cell "d" "make default"))
+                     (cons (wttrin--footer-cell "q" "quit")
+                           (wttrin--footer-cell "r" "rename"))
+                     (cons nil
+                           (wttrin--footer-cell "x" "remove"))))
+         (lines (cons header
+                      (mapcar (lambda (row)
+                                (concat (wttrin--footer-pad (or (car row) "")
+                                                            wttrin--footer-left-width)
+                                        (or (cdr row) "")))
+                              rows))))
+    (insert (mapconcat #'identity lines "\n"))))
 
 (defun wttrin--format-staleness-header (location)
   "Return a staleness header string for LOCATION, or nil if no cache entry.
@@ -773,67 +1002,80 @@ even though the weather was fetched by raw coordinates."
   (when (and (stringp address) (> (length address) 0))
     (propertize (concat "Location: " address) 'face 'wttrin-staleness-header)))
 
-(defun wttrin--display-weather (location-name raw-string &optional error-msg address)
-  "Display weather data RAW-STRING for LOCATION-NAME in weather buffer.
-When ERROR-MSG is provided and data is invalid, show that instead of
-the generic error message.  When ADDRESS is non-empty, show it on a
-\"Location:\" line below the weather (used by the geolocation command path,
-which fetches by coordinates but can name the place)."
-  (when wttrin-debug
-    (wttrin--save-debug-data location-name raw-string))
+(defun wttrin--display-weather (query raw-string &optional error-msg display address)
+  "Display weather RAW-STRING for QUERY in the weather buffer.
+QUERY is the location wttr.in was fetched with — the cache key and the buffer's
+refresh identity.  DISPLAY is what the header shows (a saved-location name);
+when nil it falls back to QUERY.  ERROR-MSG, when provided and the data is
+invalid, is shown instead of the generic error.  ADDRESS, when non-empty, shows
+on a \"Location:\" line below the weather (the geolocation path fetches by
+coordinates but can name the place)."
+  (let ((display (or display query)))
+    (when wttrin-debug
+      (wttrin--save-debug-data query raw-string))
 
-  (if (not (wttrin--validate-weather-data raw-string))
-      (message "wttrin: %s"
-               (or error-msg
-                   "Cannot retrieve weather data. Perhaps the location was misspelled?"))
-    (wttrin--add-to-location-history location-name)
-    (let ((buffer (get-buffer-create (format "*wttr.in*"))))
-      (switch-to-buffer buffer)
+    (if (not (wttrin--validate-weather-data raw-string))
+        (message "wttrin: %s"
+                 (or error-msg
+                     "Cannot retrieve weather data. Perhaps the location was misspelled?"))
+      (wttrin--add-to-location-history display)
+      (let ((buffer (get-buffer-create (format "*wttr.in*"))))
+        (switch-to-buffer buffer)
 
-      ;; wttrin-mode calls kill-all-local-variables, so it must run
-      ;; before setting any buffer-local state (xterm-color, location)
-      (wttrin-mode)
+        ;; wttrin-mode calls kill-all-local-variables, so it must run
+        ;; before setting any buffer-local state (xterm-color, location)
+        (wttrin-mode)
 
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        ;; xterm-color--state must be set AFTER wttrin-mode for the same
-        ;; reason — mode initialization would wipe it
-        (require 'xterm-color)
-        (setq-local xterm-color--state :char)
-        (insert (wttrin--process-weather-content raw-string))
-        ;; wttr.in returns location in lowercase — replace with user's casing
-        (goto-char (point-min))
-        (when (re-search-forward "^Weather report: .*$" nil t)
-          (replace-match (concat "Weather report: " location-name)))
-        (let ((location-line (wttrin--format-location-line address)))
-          (when location-line
-            (insert "\n" location-line)))
-        (let ((staleness (wttrin--format-staleness-header location-name)))
-          (when staleness
-            (insert "\n" staleness)))
-        (wttrin--add-buffer-instructions)
-        (goto-char (point-min)))
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          ;; xterm-color--state must be set AFTER wttrin-mode for the same
+          ;; reason — mode initialization would wipe it
+          (require 'xterm-color)
+          (setq-local xterm-color--state :char)
+          (insert (wttrin--process-weather-content raw-string))
+          ;; wttr.in returns location in lowercase — replace with the display name
+          (goto-char (point-min))
+          (when (re-search-forward "^Weather report: .*$" nil t)
+            (replace-match (concat "Weather report: " display)))
+          (let ((location-line (wttrin--format-location-line address)))
+            (when location-line
+              (insert "\n" location-line)))
+          ;; The cache is keyed on QUERY, so the staleness header reads QUERY.
+          (let ((staleness (wttrin--format-staleness-header query)))
+            (when staleness
+              (insert "\n" staleness)))
+          (wttrin--add-buffer-instructions)
+          (goto-char (point-min)))
 
-      (setq-local wttrin--current-location location-name)
-      (wttrin--debug-mode-line-info))))
+        ;; Anchor the window to the top.  Point is at point-min, but when the
+        ;; buffer is taller than the window a reused window can keep an old
+        ;; mid-buffer window-start, hiding the weather above the fold.
+        (let ((win (get-buffer-window buffer)))
+          (when win (set-window-start win (point-min))))
 
-(defun wttrin-query (location-name &optional address)
-  "Asynchronously query weather of LOCATION-NAME, display result when ready.
-LOCATION-NAME is what weather is fetched by (and the cache key).  Optional
-ADDRESS is a human-readable place name shown on a \"Location:\" line, used when
-LOCATION-NAME is raw coordinates from a geolocation command."
+        (setq-local wttrin--current-location query)
+        (setq-local wttrin--current-display display)
+        (setq-local wttrin--current-address address)
+        (wttrin--debug-mode-line-info)))))
+
+(defun wttrin-query (query &optional display address)
+  "Asynchronously query weather for QUERY, display the result when ready.
+QUERY is what weather is fetched by (and the cache key).  Optional DISPLAY is
+the name shown in the header (a saved-location name); when nil it falls back to
+QUERY.  Optional ADDRESS is shown on a \"Location:\" line, used when QUERY is raw
+coordinates from a geolocation command."
   (let ((buffer (get-buffer-create (format "*wttr.in*"))))
     (switch-to-buffer buffer)
     (setq buffer-read-only nil)
     (erase-buffer)
-    (insert "Loading weather for " location-name "...")
+    (insert "Loading weather for " (or display query) "...")
     (setq buffer-read-only t)
     (wttrin--get-cached-or-fetch
-     location-name
+     query
      (lambda (raw-string &optional error-msg)
        (when (buffer-live-p buffer)
          (with-current-buffer buffer
-           (wttrin--display-weather location-name raw-string error-msg address)))))))
+           (wttrin--display-weather query raw-string error-msg display address)))))))
 
 (defun wttrin--make-cache-key (location)
   "Create cache key from LOCATION and current settings."
@@ -923,7 +1165,7 @@ the detected city as your default."
          (message "Could not detect location (network or provider error)"))
         ((yes-or-no-p (format "Detected location: %s. Set as favorite? "
                               location))
-         (setq wttrin-favorite-location location)
+         (wttrin--set-favorite-location location)
          (message "Set wttrin-favorite-location to: %s%s"
                   location
                   (if (bound-and-true-p savehist-mode)
@@ -952,7 +1194,7 @@ Does nothing when `wttrin-geolocation-enabled' is nil."
    ((not wttrin-geolocation-enabled)
     (message "Geolocation is disabled (set wttrin-geolocation-enabled to enable it)"))
    ((yes-or-no-p "Always use your current location (auto-detect via geolocation)? ")
-    (setq wttrin-favorite-location t)
+    (wttrin--set-favorite-location t)
     (message "Favorite location set to auto-detect%s"
              (if (bound-and-true-p savehist-mode)
                  " (persisted via savehist)."
@@ -960,16 +1202,15 @@ Does nothing when `wttrin-geolocation-enabled' is nil."
    (t
     (message "Cancelled"))))
 
-(defvar-local wttrin--current-location nil
-  "Current location displayed in this weather buffer.")
-
 (defun wttrin-requery-force ()
   "Force refresh weather data for current location, bypassing cache."
   (interactive)
   (if wttrin--current-location
       (let ((wttrin--force-refresh t))
         (message "Refreshing weather data...")
-        (wttrin-query wttrin--current-location))
+        (wttrin-query wttrin--current-location
+                      wttrin--current-display
+                      wttrin--current-address))
     (message "No location to refresh")))
 
 (defun wttrin--set-favorite-location (location)
@@ -988,15 +1229,30 @@ here works whether or not savehist is loaded."
 
 (defun wttrin-make-default ()
   "Make the location shown in this buffer the favorite (persisted) default.
-Sets `wttrin-favorite-location' to the displayed location so it drives the
-mode-line and survives restarts.  No-op with a message when the buffer has
-no current location."
+A named buffer (a saved alias or a typed location) is promoted directly.  A raw
+coordinate buffer (a fresh geolocation detection) first prompts for a name,
+prefilled with the detected address; the entered name is saved to the directory
+and promoted.  An empty name keeps the raw coordinates as the default.  No-op
+with a message when the buffer has no current location."
   (interactive)
-  (if wttrin--current-location
-      (progn
-        (wttrin--set-favorite-location wttrin--current-location)
-        (message "wttrin: %s is now the default location" wttrin--current-location))
-    (message "wttrin: no location to make default")))
+  (cond
+   ((null wttrin--current-location)
+    (message "wttrin: no location to make default"))
+   ((wttrin--coordinates-p wttrin--current-location)
+    (let ((name (string-trim
+                 (read-string "Save location as (empty keeps coordinates): "
+                              (wttrin--location-name-prefill)))))
+      (if (string= name "")
+          (progn
+            (wttrin--set-favorite-location wttrin--current-location)
+            (message "wttrin: %s is now the default location" wttrin--current-location))
+        (wttrin--put-saved-location name wttrin--current-location)
+        (wttrin--set-favorite-location name)
+        (message "wttrin: %s is now the default location" name))))
+   (t
+    (let ((favorite (or wttrin--current-display wttrin--current-location)))
+      (wttrin--set-favorite-location favorite)
+      (message "wttrin: %s is now the default location" favorite)))))
 
 ;;; Mode-line weather display
 
@@ -1079,10 +1335,11 @@ proceeds normally."
              (let ((trimmed-data (string-trim data)))
                (wttrin--debug-log "mode-line-fetch: Received data = %S" trimmed-data)
                (if (wttrin--mode-line-valid-response-p trimmed-data)
-                   (progn
+                   (let ((display (or (wttrin--favorite-location-display-name)
+                                      location)))
                      (setq wttrin--mode-line-cache
                           (cons (float-time)
-                                (wttrin--replace-response-location trimmed-data location)))
+                                (wttrin--replace-response-location trimmed-data display)))
                      (wttrin--mode-line-update-display))
                  (wttrin--debug-log "mode-line-fetch: Invalid response, keeping previous display")))
            ;; Network error / nil data

@@ -39,7 +39,7 @@
   (test-wttrin-requery-setup)
   (unwind-protect
       (let ((old-buffer (get-buffer-create "*wttr.in*")))
-        (cl-letf (((symbol-function 'wttrin-query) (lambda (_loc) nil)))
+        (cl-letf (((symbol-function 'wttrin-query) (lambda (_loc &rest _) nil)))
           (wttrin--requery-location "Tokyo")
           ;; Old buffer should be dead
           (should-not (buffer-live-p old-buffer))))
@@ -51,7 +51,7 @@
   (unwind-protect
       (let ((queried-location nil))
         (cl-letf (((symbol-function 'wttrin-query)
-                   (lambda (loc) (setq queried-location loc))))
+                   (lambda (loc &rest _) (setq queried-location loc))))
           (wttrin--requery-location "Berlin, DE")
           (should (equal queried-location "Berlin, DE"))))
     (test-wttrin-requery-teardown)))
@@ -66,7 +66,7 @@
         ;; Ensure no buffer exists
         (should-not (get-buffer "*wttr.in*"))
         (cl-letf (((symbol-function 'wttrin-query)
-                   (lambda (loc) (setq queried-location loc))))
+                   (lambda (loc &rest _) (setq queried-location loc))))
           (wttrin--requery-location "Paris")
           (should (equal queried-location "Paris"))))
     (test-wttrin-requery-teardown)))
@@ -77,7 +77,7 @@
   (unwind-protect
       (let ((queried-location nil))
         (cl-letf (((symbol-function 'wttrin-query)
-                   (lambda (loc) (setq queried-location loc))))
+                   (lambda (loc &rest _) (setq queried-location loc))))
           (wttrin--requery-location "Zürich, CH")
           (should (equal queried-location "Zürich, CH"))))
     (test-wttrin-requery-teardown)))
@@ -113,7 +113,7 @@ to the core requery function."
                      (setq offered-collection collection)
                      "Paris"))
                   ((symbol-function 'wttrin--requery-location)
-                   (lambda (_loc) nil)))
+                   (lambda (_loc &rest _) nil)))
           (wttrin-requery)
           ;; The collection is now a completion table (a function) that pins
           ;; the sentinel first; check the candidates it completes over.
@@ -134,7 +134,7 @@ to the core requery function."
                      (setq initial-input init)
                      "Solo City"))
                   ((symbol-function 'wttrin--requery-location)
-                   (lambda (_loc) nil)))
+                   (lambda (_loc &rest _) nil)))
           (wttrin-requery)
           (should (equal initial-input "Solo City"))))
     (test-wttrin-requery-teardown)))
@@ -150,7 +150,7 @@ to the core requery function."
                      (setq initial-input init)
                      "Paris"))
                   ((symbol-function 'wttrin--requery-location)
-                   (lambda (_loc) nil)))
+                   (lambda (_loc &rest _) nil)))
           (wttrin-requery)
           (should-not initial-input)))
     (test-wttrin-requery-teardown)))

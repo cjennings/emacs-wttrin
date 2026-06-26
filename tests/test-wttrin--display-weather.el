@@ -97,13 +97,14 @@ Weather report: Paris, France
         (wttrin--display-weather "Tokyo" test-wttrin--display-weather-sample-raw-data)
 
         (with-current-buffer "*wttr.in*"
-          (goto-char (point-max))
-          (forward-line -2)
-          ;; Should contain help text
-          (should (search-forward "Press:" nil t))
-          (should (search-forward "[a] for another location" nil t))
-          (should (search-forward "[g] to refresh" nil t))
-          (should (search-forward "[q] to quit" nil t))))
+          ;; The two-column footer carries both groups; check a token from
+          ;; each column independently (document order mixes them).
+          (let ((text (buffer-string)))
+            (should (string-match-p "This view" text))
+            (should (string-match-p "Saved locations" text))
+            (should (string-match-p "\\[a\\] another" text))
+            (should (string-match-p "\\[s\\] save" text))
+            (should (string-match-p "\\[x\\] remove" text)))))
     (test-wttrin--display-weather-teardown)))
 
 ;;; Boundary Cases
