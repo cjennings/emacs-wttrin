@@ -320,14 +320,14 @@ The older =M-x wttrin-set-location-from-geolocation= command still works but is 
 #+end_src
 
 *** Naming Locations
-A saved location has a friendly name and a separate query: =wttrin= shows the name in the picker, the buffer header, and the mode-line, but fetches weather for the query. That lets a precise query hide behind a readable name — "Craig's House" rather than "1500 Sugar Bowl Dr, New Orleans". The query can be a city, a full address, or =lat,lng= coordinates.
+A saved location has a friendly name and a separate query: =wttrin= shows the name in the picker, the buffer header, and the mode-line, but fetches weather for the query. That lets a precise query hide behind a readable name — "Superdome" rather than "1500 Sugar Bowl Dr, New Orleans". The query can be a city, a full address, or =lat,lng= coordinates.
 
 Set them in your init:
 
 #+begin_src emacs-lisp
   (setq wttrin-saved-locations
-        '(("Craig's House" . "1500 Sugar Bowl Dr, New Orleans")
-          ("Home"          . "41.37,-71.83")))
+        '(("Superdome" . "1500 Sugar Bowl Dr, New Orleans")
+          ("Home"      . "41.37,-71.83")))
 #+end_src
 
 Or build the directory interactively:

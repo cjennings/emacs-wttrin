@@ -210,7 +210,7 @@ NAME is what shows in the picker, the buffer header, and the mode-line.  QUERY
 is what wttr.in is fetched with: a city, a street address, or \"lat,lng\"
 coordinates.  For example:
 
-  ((\"Craig's House\" . \"1500 Sugar Bowl Dr, New Orleans\")
+  ((\"Superdome\" . \"1500 Sugar Bowl Dr, New Orleans\")
    (\"Home\" . \"41.37,-71.83\"))
 
 A bare string S used anywhere a location is expected is shorthand for
