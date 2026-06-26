@@ -1229,11 +1229,13 @@ here works whether or not savehist is loaded."
 
 (defun wttrin-make-default ()
   "Make the location shown in this buffer the favorite (persisted) default.
-A named buffer (a saved alias or a typed location) is promoted directly.  A raw
-coordinate buffer (a fresh geolocation detection) first prompts for a name,
-prefilled with the detected address; the entered name is saved to the directory
-and promoted.  An empty name keeps the raw coordinates as the default.  No-op
-with a message when the buffer has no current location."
+A named buffer (a saved alias or a typed location) is saved to the directory and
+promoted, so the default also persists as a named entry rather than only the
+favorite string.  A raw coordinate buffer (a fresh geolocation detection) first
+prompts for a name, prefilled with the detected address; the entered name is
+saved and promoted.  An empty name keeps the raw coordinates as the default
+without saving a directory entry.  No-op with a message when the buffer has no
+current location."
   (interactive)
   (cond
    ((null wttrin--current-location)
@@ -1251,6 +1253,7 @@ with a message when the buffer has no current location."
         (message "wttrin: %s is now the default location" name))))
    (t
     (let ((favorite (or wttrin--current-display wttrin--current-location)))
+      (wttrin--put-saved-location favorite wttrin--current-location)
       (wttrin--set-favorite-location favorite)
       (message "wttrin: %s is now the default location" favorite)))))
 

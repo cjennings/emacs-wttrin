@@ -300,7 +300,24 @@ now-deleted alias's resolved weather and re-fetches against the bare query."
                 ((symbol-function 'message) (lambda (&rest _) nil)))
         (wttrin-make-default)))
     (should-not prompted)
-    (should (equal "Craig's House" wttrin-favorite-location))))
+    (should (equal "Craig's House" wttrin-favorite-location))
+    (should (equal "1500 Sugar Bowl Dr"
+                   (wttrin--resolve-location-query "Craig's House")))))
+
+(ert-deftest test-wttrin-saved-locations-normal-d-typed-saves-to-directory ()
+  "Normal: making a typed location the default also saves it to the directory,
+so it persists as a named entry rather than only as the favorite string."
+  (let ((wttrin-saved-locations nil)
+        (wttrin-favorite-location nil)
+        (wttrin-mode-line-mode nil))
+    (with-temp-buffer
+      (setq-local wttrin--current-location "Reykjavik")
+      (setq-local wttrin--current-display "Reykjavik")
+      (cl-letf (((symbol-function 'message) (lambda (&rest _) nil)))
+        (wttrin-make-default)))
+    (should (equal "Reykjavik" wttrin-favorite-location))
+    (should (assoc "Reykjavik" (wttrin--saved-locations)))
+    (should (equal "Reykjavik" (wttrin--resolve-location-query "Reykjavik")))))
 
 ;;; interactive entry smoke tests (cover the prompt forms)
 
