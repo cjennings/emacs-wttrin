@@ -1262,11 +1262,13 @@ current location."
             (message "wttrin: %s is now the default location" wttrin--current-location))
         (wttrin--put-saved-location name wttrin--current-location)
         (wttrin--set-favorite-location name)
+        (wttrin--drop-from-location-history name wttrin--current-location)
         (message "wttrin: %s is now the default location" name))))
    (t
     (let ((favorite (or wttrin--current-display wttrin--current-location)))
       (wttrin--put-saved-location favorite wttrin--current-location)
       (wttrin--set-favorite-location favorite)
+      (wttrin--drop-from-location-history favorite wttrin--current-location)
       (message "wttrin: %s is now the default location" favorite)))))
 
 ;;; Mode-line weather display

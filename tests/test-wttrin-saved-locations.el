@@ -385,6 +385,23 @@ the directory only and does not also appear as a separate history candidate."
     (should-not (member "New Orleans" wttrin--location-history))
     (should (member "Paris" wttrin--location-history))))
 
+(ert-deftest test-wttrin-saved-locations-normal-d-alias-drops-query-from-history ()
+  "Normal: making an aliased location the default drops its underlying query from
+history, so the place does not also linger as a separate history candidate."
+  (let ((wttrin-saved-locations nil)
+        (wttrin-favorite-location nil)
+        (wttrin-mode-line-mode nil)
+        (wttrin--location-history '("New Orleans" "Paris")))
+    (with-temp-buffer
+      (setq-local wttrin--current-location "New Orleans")
+      (setq-local wttrin--current-display "Home")
+      (cl-letf (((symbol-function 'message) (lambda (&rest _) nil)))
+        (wttrin-make-default)))
+    (should (equal "Home" wttrin-favorite-location))
+    (should (assoc "Home" (wttrin--saved-locations)))
+    (should-not (member "New Orleans" wttrin--location-history))
+    (should (member "Paris" wttrin--location-history))))
+
 (ert-deftest test-wttrin-saved-locations-normal-remove-forgets-history ()
   "Normal: removing a saved location drops both its name and its query from
 history, so a removed place does not resurface as a history candidate."
