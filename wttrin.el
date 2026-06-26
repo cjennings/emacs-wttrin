@@ -618,6 +618,15 @@ promoted to most-recent, and the list is trimmed to
               (butlast wttrin--location-history
                        (- (length wttrin--location-history) max)))))))
 
+(defun wttrin--drop-from-location-history (&rest locations)
+  "Remove each non-nil string in LOCATIONS from `wttrin--location-history'.
+Keeps the directory and the history disjoint: a place lives in one or the
+other, never both."
+  (dolist (location locations)
+    (when (and location (stringp location))
+      (setq wttrin--location-history
+            (delete location wttrin--location-history)))))
+
 (defun wttrin--saved-locations ()
   "Return `wttrin-saved-locations' as a clean list of (NAME . QUERY) pairs.
 Skips malformed entries — non-cons, a non-string name or query, or an empty
@@ -808,6 +817,7 @@ address, else the query.  Saving an existing name updates its query."
       (message "Cancelled")
     (let ((existing (assoc (string-trim name) (wttrin--saved-locations)))
           (saved (wttrin--put-saved-location name query)))
+      (wttrin--drop-from-location-history saved query)
       (message (if existing "Updated %s" "Saved %s") saved))))
 
 (defun wttrin-rename-location (old new)
@@ -847,7 +857,9 @@ When NAME is the favorite, it is left as a literal query with a warning."
    ((not (assoc name (wttrin--saved-locations)))
     (user-error "No saved location named %s" name))
    ((yes-or-no-p (format "Remove saved location \"%s\"? " name))
-    (wttrin--remove-saved-location name)
+    (let ((query (cdr (assoc name (wttrin--saved-locations)))))
+      (wttrin--remove-saved-location name)
+      (wttrin--drop-from-location-history name query))
     (if (equal wttrin-favorite-location name)
         (progn
           (when (bound-and-true-p wttrin-mode-line-mode)

@@ -373,5 +373,29 @@ so it persists as a named entry rather than only as the favorite string."
         (should (null wttrin--location-history)))
     (testutil-wttrin-teardown)))
 
+;;; history stays in sync with the directory
+
+(ert-deftest test-wttrin-saved-locations-normal-save-drops-query-from-history ()
+  "Normal: saving a location drops its query from history, so the place lives in
+the directory only and does not also appear as a separate history candidate."
+  (let ((wttrin-saved-locations nil)
+        (wttrin--location-history '("New Orleans" "Paris")))
+    (cl-letf (((symbol-function 'message) (lambda (&rest _) nil)))
+      (wttrin-save-location "Home" "New Orleans"))
+    (should-not (member "New Orleans" wttrin--location-history))
+    (should (member "Paris" wttrin--location-history))))
+
+(ert-deftest test-wttrin-saved-locations-normal-remove-forgets-history ()
+  "Normal: removing a saved location drops both its name and its query from
+history, so a removed place does not resurface as a history candidate."
+  (let ((wttrin-saved-locations '(("Home" . "New Orleans")))
+        (wttrin--location-history '("Home" "New Orleans" "Paris")))
+    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+              ((symbol-function 'message) (lambda (&rest _) nil)))
+      (wttrin-remove-location "Home"))
+    (should-not (member "Home" wttrin--location-history))
+    (should-not (member "New Orleans" wttrin--location-history))
+    (should (member "Paris" wttrin--location-history))))
+
 (provide 'test-wttrin-saved-locations)
 ;;; test-wttrin-saved-locations.el ends here
