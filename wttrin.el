@@ -1236,8 +1236,13 @@ coordinates from a geolocation command."
            (wttrin--display-weather query raw-string error-msg display address)))))))
 
 (defun wttrin--make-cache-key (location)
-  "Create cache key from LOCATION and current settings."
-  (concat location "|" (or wttrin-unit-system "default")))
+  "Create a cache key from LOCATION and every setting that shapes the response.
+Includes the unit system, display options, and Accept-Language, so changing any
+of them produces a distinct key rather than serving a stale-format response."
+  (format "%S" (list location
+                      (or wttrin-unit-system "default")
+                      (or wttrin-display-options "")
+                      wttrin-default-languages)))
 
 (defun wttrin--get-cached-or-fetch (location callback)
   "Get cached weather for LOCATION or fetch if not cached.
