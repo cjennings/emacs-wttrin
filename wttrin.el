@@ -34,6 +34,7 @@
 ;;; Code:
 
 (require 'face-remap)
+(require 'subr-x)                        ; string-trim
 (require 'url)
 
 ;; Declare xterm-color functions (loaded on-demand)
