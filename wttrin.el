@@ -1283,12 +1283,13 @@ Returns a list where each element is a cons cell (key . timestamp)."
 (defun wttrin--cleanup-cache-if-needed ()
   "Remove oldest entries if cache exceeds max size.
 Removes oldest entries based on `wttrin--cache-cleanup-percentage'
-when cache count exceeds `wttrin-cache-max-entries'.
+when cache count exceeds `wttrin-cache-max-entries', and always at least one
+so the cache can't sit over its maximum when the percentage floors to zero.
 This creates headroom to avoid frequent cleanups."
   (when (> (hash-table-count wttrin--cache) wttrin-cache-max-entries)
     (let* ((entries-by-age (wttrin--get-cache-entries-by-age))
-           (num-to-remove (floor (* (length entries-by-age)
-                                    wttrin--cache-cleanup-percentage))))
+           (num-to-remove (max 1 (floor (* (length entries-by-age)
+                                           wttrin--cache-cleanup-percentage)))))
       (dotimes (i num-to-remove)
         (remhash (car (nth i entries-by-age)) wttrin--cache)))))
 

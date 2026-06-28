@@ -108,16 +108,17 @@
         (should (= 1 (testutil-wttrin-cache-size))))
     (test-wttrin--cleanup-cache-if-needed-teardown)))
 
-(ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-two-entries-at-max-one-removes-none ()
-  "Test that two entries at max=1 removes no entries due to integer division."
+(ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-two-entries-at-max-one-reduces-to-max ()
+  "Boundary: two entries at max=1 reduces to the max.
+floor(2 * 0.20) is 0, but cleanup must still remove at least one entry when the
+cache is over max, or it would exceed its advertised maximum indefinitely."
   (test-wttrin--cleanup-cache-if-needed-setup)
   (unwind-protect
       (testutil-wttrin-with-cache-max 1
         (testutil-wttrin-add-to-cache "old" "data1" 100)
         (testutil-wttrin-add-to-cache "new" "data2" 50)
         (wttrin--cleanup-cache-if-needed)
-        ;; 2 entries / 5 = 0 in integer division, so no entries removed
-        (should (= 2 (testutil-wttrin-cache-size))))
+        (should (= 1 (testutil-wttrin-cache-size))))
     (test-wttrin--cleanup-cache-if-needed-teardown)))
 
 (ert-deftest test-wttrin--cleanup-cache-if-needed-boundary-one-over-max-removes-oldest ()
