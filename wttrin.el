@@ -1614,6 +1614,13 @@ scheduled refresh."
 (defvar wttrin--buffer-refresh-timer nil
   "Timer object for proactive buffer cache refresh.")
 
+(defvar wttrin--mode-line-startup-timer nil
+  "One-shot timer for the delayed initial mode-line fetch.")
+
+;; Defined by the `wttrin-mode-line-mode' minor mode below; declared here so
+;; the startup guard can read it without a free-variable warning.
+(defvar wttrin-mode-line-mode)
+
 (defun wttrin--buffer-cache-refresh ()
   "Proactively refresh the buffer cache for `wttrin-favorite-location'.
 Fetches fresh weather data and updates the buffer cache entry without
@@ -1630,6 +1637,14 @@ geolocation has not yet resolved, this call is a no-op."
              (wttrin--cleanup-cache-if-needed)
              (puthash cache-key (cons (float-time) fresh-data) wttrin--cache))))))))
 
+(defun wttrin--mode-line-fetch-weather-if-enabled ()
+  "Fetch mode-line weather only if `wttrin-mode-line-mode' is still enabled.
+The initial fetch is delayed, so the mode can be turned off before it fires.
+This guard keeps a disabled mode from hitting the network or mutating
+mode-line state."
+  (when wttrin-mode-line-mode
+    (wttrin--mode-line-fetch-weather)))
+
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
   (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
@@ -1641,8 +1656,14 @@ geolocation has not yet resolved, this call is a no-op."
     ;; on the next tick.
     (wttrin--resolve-favorite-location)
     (wttrin--mode-line-set-placeholder)
-    ;; Delay first fetch — network/daemon may not be ready at startup
-    (run-at-time wttrin-mode-line-startup-delay nil #'wttrin--mode-line-fetch-weather)
+    ;; Delay first fetch — network/daemon may not be ready at startup.
+    ;; Store the one-shot timer so stop can cancel it, and guard the callback
+    ;; so a disable before it fires is a no-op.
+    (when wttrin--mode-line-startup-timer
+      (cancel-timer wttrin--mode-line-startup-timer))
+    (setq wttrin--mode-line-startup-timer
+          (run-at-time wttrin-mode-line-startup-delay nil
+                       #'wttrin--mode-line-fetch-weather-if-enabled))
     ;; Cancel existing timers to prevent duplicates on re-enable
     (when wttrin--mode-line-timer
       (cancel-timer wttrin--mode-line-timer))
@@ -1669,6 +1690,12 @@ geolocation has not yet resolved, this call is a no-op."
   (when wttrin--buffer-refresh-timer
     (cancel-timer wttrin--buffer-refresh-timer)
     (setq wttrin--buffer-refresh-timer nil))
+  (when wttrin--mode-line-startup-timer
+    (cancel-timer wttrin--mode-line-startup-timer)
+    (setq wttrin--mode-line-startup-timer nil))
+  ;; If the mode was enabled before after-init and disabled before the hook
+  ;; ran, the queued start would fire after disable — drop it.
+  (remove-hook 'after-init-hook #'wttrin--mode-line-start)
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-cache nil)
   (setq wttrin--mode-line-rendered-stale nil)

@@ -21,7 +21,8 @@
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-cache nil)
   (setq wttrin--mode-line-timer nil)
-  (setq wttrin--buffer-refresh-timer nil))
+  (setq wttrin--buffer-refresh-timer nil)
+  (setq wttrin--mode-line-startup-timer nil))
 
 (defun test-wttrin--mode-line-start-teardown ()
   "Teardown for mode-line-start tests."
@@ -30,10 +31,13 @@
     (cancel-timer wttrin--mode-line-timer))
   (when (timerp wttrin--buffer-refresh-timer)
     (cancel-timer wttrin--buffer-refresh-timer))
+  (when (timerp wttrin--mode-line-startup-timer)
+    (cancel-timer wttrin--mode-line-startup-timer))
   (setq wttrin-mode-line-string nil)
   (setq wttrin--mode-line-cache nil)
   (setq wttrin--mode-line-timer nil)
-  (setq wttrin--buffer-refresh-timer nil))
+  (setq wttrin--buffer-refresh-timer nil)
+  (setq wttrin--mode-line-startup-timer nil))
 
 ;;; Normal Cases
 
@@ -70,8 +74,10 @@
                                                 (null (plist-get call :repeat))))
                                          scheduled-calls)))
             (should initial-fetch)
+            ;; The delayed fetch goes through the enabled-guard wrapper so a
+            ;; disable before it fires is a no-op.
             (should (eq (plist-get initial-fetch :func)
-                        #'wttrin--mode-line-fetch-weather)))))
+                        #'wttrin--mode-line-fetch-weather-if-enabled)))))
     (test-wttrin--mode-line-start-teardown)))
 
 (ert-deftest test-wttrin--mode-line-start-normal-creates-repeating-mode-line-timer ()
