@@ -927,6 +927,11 @@ When NAME is the favorite, it is left as a literal query with a warning."
 (defvar-local wttrin--current-font-height nil
   "The font height (1/10 pt) currently applied via `wttrin--face-remap-cookie'.")
 
+(defvar-local wttrin--weather-rendered nil
+  "Non-nil once real weather has rendered in this buffer.
+Auto-fit keys on this so the transient \"Loading...\" placeholder is not sized
+to fill the window.")
+
 (define-derived-mode wttrin-mode special-mode "Wttrin"
   "Major mode for displaying wttr.in weather information.
 
@@ -1148,13 +1153,28 @@ height is unchanged."
                                      :height height))
       (setq wttrin--current-font-height height))))
 
+(defun wttrin--reset-font-height ()
+  "Re-apply the base `wttrin-font-height', discarding any auto-fit remap.
+Used for the loading placeholder so it shows at the base size rather than the
+previous weather's auto-fitted (possibly capped) height.  No-op when the buffer
+has no remap cookie yet."
+  (when wttrin--face-remap-cookie
+    (face-remap-remove-relative wttrin--face-remap-cookie)
+    (setq wttrin--face-remap-cookie
+          (face-remap-add-relative 'default
+                                   :family wttrin-font-name
+                                   :height wttrin-font-height))
+    (setq wttrin--current-font-height wttrin-font-height)))
+
 (defun wttrin--update-layout (&rest _)
   "Auto-fit the font (when enabled), then center the block in the buffer's window.
+Auto-fit runs only once real weather has rendered (`wttrin--weather-rendered'),
+so the one-line \"Loading...\" placeholder is not sized to fill the window.
 Accepts and ignores hook arguments, so it is safe on
 `window-configuration-change-hook'.  No-op when the buffer has no window."
   (let ((win (get-buffer-window (current-buffer))))
     (when win
-      (when wttrin-auto-fit-font
+      (when (and wttrin-auto-fit-font wttrin--weather-rendered)
         (wttrin--apply-fit-font win))
       (wttrin--center-buffer win))))
 
@@ -1207,6 +1227,9 @@ coordinates but can name the place)."
           (wttrin--add-buffer-instructions)
           (goto-char (point-min)))
 
+        ;; Real weather is now in the buffer, so auto-fit may size to it.
+        (setq-local wttrin--weather-rendered t)
+
         ;; Anchor the window to the top.  Point is at point-min, but when the
         ;; buffer is taller than the window a reused window can keep an old
         ;; mid-buffer window-start, hiding the weather above the fold.
@@ -1240,6 +1263,10 @@ coordinates from a geolocation command."
     (insert "Loading weather for " (or display query) "...")
     (setq buffer-read-only t)
     (setq-local wttrin--current-request-id request-id)
+    ;; The placeholder is one line; keep auto-fit off it and show it at the base
+    ;; font rather than the previous weather's auto-fitted (possibly capped) size.
+    (setq-local wttrin--weather-rendered nil)
+    (wttrin--reset-font-height)
     (wttrin--get-cached-or-fetch
      query
      (lambda (raw-string &optional error-msg)
