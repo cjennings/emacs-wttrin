@@ -15,7 +15,7 @@
 (source "nongnu")
 (source "melpa")
 
-(depends-on "emacs" "24.4")
+(depends-on "emacs" "25.1")
 (depends-on "xterm-color")
 
 (development

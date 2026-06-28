@@ -3,7 +3,7 @@
 ;; Copyright (C) 2026 Craig Jennings
 ;; Maintainer: Craig Jennings <c@cjennings.net>
 ;; Version: 0.3.1
-;; Package-Requires: ((emacs "24.4"))
+;; Package-Requires: ((emacs "25.1"))
 ;; Keywords: weather, wttrin
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later

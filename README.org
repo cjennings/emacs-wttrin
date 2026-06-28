@@ -8,7 +8,7 @@
 [[https://github.com/cjennings/emacs-wttrin/actions/workflows/ci.yml][file:https://github.com/cjennings/emacs-wttrin/actions/workflows/ci.yml/badge.svg]]
 [[https://coveralls.io/github/cjennings/emacs-wttrin?branch=main][file:https://coveralls.io/repos/github/cjennings/emacs-wttrin/badge.svg?branch=main]]
 
-Wttrin is a simple Emacs frontend for Igor Chubin's [[https://github.com/chubin/wttr.in][wttr.in]] weather service. It works with Emacs 24.4+ and needs [[https://github.com/atomontage/xterm-color][xterm-color]] for the colored ASCII art (MELPA handles that dependency for you).
+Wttrin is a simple Emacs frontend for Igor Chubin's [[https://github.com/chubin/wttr.in][wttr.in]] weather service. It works with Emacs 25.1+ and needs [[https://github.com/atomontage/xterm-color][xterm-color]] for the colored ASCII art (MELPA handles that dependency for you).
 
 [[assets/wttrin.png]]
 

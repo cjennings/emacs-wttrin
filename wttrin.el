@@ -6,7 +6,7 @@
 ;; Original Authors: Carl X. Su <bcbcarl@gmail.com>
 ;;                   ono hiroko (kuanyui) <azazabc123@gmail.com>
 ;; Version: 0.3.2
-;; Package-Requires: ((emacs "24.4") (xterm-color "1.0"))
+;; Package-Requires: ((emacs "25.1") (xterm-color "1.0"))
 ;; Keywords: weather, wttrin, games
 ;; URL: https://github.com/cjennings/emacs-wttrin
 
@@ -80,7 +80,7 @@ visible on monochrome glyphs."
   '((t :inherit bold))
   "Face for the bracketed key chords in the weather buffer footer.
 `help-key-binding' would be the natural parent, but it only exists in
-Emacs 28+, and wttrin supports 24.4, so the default inherits `bold'."
+Emacs 28+, and wttrin supports 25.1, so the default inherits `bold'."
   :group 'wttrin)
 
 (defface wttrin-instructions-header
@@ -96,7 +96,29 @@ two key-hint columns."
   :type 'string)
 
 (defcustom wttrin-font-height 130
-  "Preferred font height for weather display."
+  "Preferred font height for weather display.
+Used as the fixed height when `wttrin-auto-fit-font' is nil."
+  :group 'wttrin
+  :type 'integer)
+
+(defcustom wttrin-auto-fit-font nil
+  "When non-nil, scale the weather font so the whole buffer fits the window.
+The height is sized so the buffer shows top to bottom (one row past the
+footer) without the widest line truncating, then clamped to
+[`wttrin-font-height-min', `wttrin-font-height-max'] and recomputed on resize.
+When nil, `wttrin-font-height' is a fixed height (the default behavior)."
+  :group 'wttrin
+  :type 'boolean)
+
+(defcustom wttrin-font-height-min 100
+  "Minimum font height (1/10 pt) when `wttrin-auto-fit-font' is enabled.
+A floor so the auto-fitted font never becomes unreadably small."
+  :group 'wttrin
+  :type 'integer)
+
+(defcustom wttrin-font-height-max 200
+  "Maximum font height (1/10 pt) when `wttrin-auto-fit-font' is enabled.
+A cap so the auto-fitted font never becomes absurdly large."
   :group 'wttrin
   :type 'integer)
 
@@ -898,6 +920,12 @@ When NAME is the favorite, it is left as a literal query with a warning."
     map)
   "Keymap for wttrin-mode.")
 
+(defvar-local wttrin--face-remap-cookie nil
+  "Cookie for the buffer's default-face remap, so its height can be updated.")
+
+(defvar-local wttrin--current-font-height nil
+  "The font height (1/10 pt) currently applied via `wttrin--face-remap-cookie'.")
+
 (define-derived-mode wttrin-mode special-mode "Wttrin"
   "Major mode for displaying wttr.in weather information.
 
@@ -907,10 +935,15 @@ Weather data is displayed in a read-only buffer with the following keybindings:
   (buffer-disable-undo)
   ;; ASCII art breaks if lines wrap at the window edge
   (setq truncate-lines t)
-  ;; Use face-remap instead of buffer-face-mode to preserve xterm-color faces
-  (face-remap-add-relative 'default
-                           :family wttrin-font-name
-                           :height wttrin-font-height))
+  ;; Use face-remap instead of buffer-face-mode to preserve xterm-color faces.
+  ;; Keep the cookie and applied height so auto-fit can update it in place.
+  (setq wttrin--current-font-height wttrin-font-height)
+  (setq wttrin--face-remap-cookie
+        (face-remap-add-relative 'default
+                                 :family wttrin-font-name
+                                 :height wttrin-font-height))
+  ;; Re-fit (when enabled) and re-center the block on resize or split
+  (add-hook 'window-configuration-change-hook #'wttrin--update-layout nil t))
 
 (defun wttrin--save-debug-data (location-name raw-string)
   "Save RAW-STRING to a timestamped debug file for LOCATION-NAME.
@@ -1014,6 +1047,109 @@ even though the weather was fetched by raw coordinates."
   (when (and (stringp address) (> (length address) 0))
     (propertize (concat "Location: " address) 'face 'wttrin-staleness-header)))
 
+(defun wttrin--block-width (text)
+  "Return the widest line's display width in TEXT.
+Width is measured with `string-width' (display columns, ignoring text
+properties).  Returns 0 for nil or empty TEXT."
+  (if (or (null text) (string= text ""))
+      0
+    (let ((width 0))
+      (dolist (line (split-string text "\n"))
+        (setq width (max width (string-width line))))
+      width)))
+
+(defun wttrin--center-margin (block-width window-width)
+  "Return the left margin that centers BLOCK-WIDTH within WINDOW-WIDTH.
+Both are column counts.  The result is floored to a whole column and is never
+negative, so a block at least as wide as the window yields 0.  Non-integer
+inputs yield 0."
+  (if (and (integerp block-width) (integerp window-width)
+           (> window-width block-width))
+      (/ (- window-width block-width) 2)
+    0))
+
+(defun wttrin--fit-font-height (block-cols avail-px char-px cur-height floor cap)
+  "Return a font height (1/10 pt) so BLOCK-COLS chars span AVAIL-PX pixels.
+CHAR-PX is the per-character pixel width at CUR-HEIGHT.  The height scales by
+the ratio of AVAIL-PX to the block's current pixel width, then clamps to
+\[FLOOR, CAP].  When an input is unusable (non-positive BLOCK-COLS, CHAR-PX,
+AVAIL-PX, or CUR-HEIGHT), the current height is returned, still clamped."
+  (let ((target
+         (if (and (integerp block-cols) (> block-cols 0)
+                  (numberp avail-px) (> avail-px 0)
+                  (numberp char-px) (> char-px 0)
+                  (integerp cur-height) (> cur-height 0))
+             (round (* cur-height (/ (float avail-px) (* block-cols char-px))))
+           cur-height)))
+    (max floor (min cap target))))
+
+(defun wttrin--center-buffer (&optional window)
+  "Center the weather block in WINDOW via the window's left margin.
+Measures the block's pixel width from the buffer font (`window-font-width') and
+divides the leftover by the frame's canonical character width, so the result is
+exact regardless of any font-height remap.  WINDOW defaults to the buffer's
+window.  Centers against the stable available width (body + current margin) and
+skips a redundant update, so it is safe on `window-configuration-change-hook'.
+No-op when the buffer has no window."
+  (let ((win (or window (get-buffer-window (current-buffer)))))
+    (when win
+      (let* ((fcw (frame-char-width (window-frame win)))
+             (char-px (or (window-font-width win) fcw))
+             (block-px (* (wttrin--block-width (buffer-string)) char-px))
+             (cur-cols (or (car (window-margins win)) 0))
+             ;; body excludes the margin, so add it back for a stable total
+             (avail-px (+ (window-body-width win t) (* cur-cols fcw)))
+             (margin-px (wttrin--center-margin block-px avail-px))
+             (margin-cols (if (> fcw 0) (floor margin-px fcw) 0)))
+        (unless (= margin-cols cur-cols)
+          (setq left-margin-width margin-cols)
+          (set-window-margins win margin-cols))))))
+
+(defun wttrin--apply-fit-font (win)
+  "Resize the font so the whole weather buffer fits WIN, clamped to floor/cap.
+Take the smaller of two fits so the buffer stays fully visible: its line
+count (plus one, so the row past the footer shows) against the window
+height, and its widest line against the window width (so nothing truncates
+under `truncate-lines').  Height binds on a wide window.  Update the
+face-remap cookie in place and record the applied height.  No-op when the
+height is unchanged."
+  (let* ((fcw (frame-char-width (window-frame win)))
+         (fch (frame-char-height (window-frame win)))
+         (char-px (or (window-font-width win) fcw))
+         (line-px (or (window-font-height win) fch))
+         (cur-cols (or (car (window-margins win)) 0))
+         (avail-w (+ (window-body-width win t) (* cur-cols fcw)))
+         (avail-h (window-body-height win t))
+         (cur-height (or wttrin--current-font-height wttrin-font-height))
+         ;; +1 so the line just past the footer's last item is visible
+         (lines (1+ (count-lines (point-min) (point-max))))
+         (block-cols (wttrin--block-width (buffer-string)))
+         (height-fit (wttrin--fit-font-height lines avail-h line-px cur-height
+                                              wttrin-font-height-min
+                                              wttrin-font-height-max))
+         (width-fit (wttrin--fit-font-height block-cols avail-w char-px cur-height
+                                             wttrin-font-height-min
+                                             wttrin-font-height-max))
+         (height (min height-fit width-fit)))
+    (unless (eql height wttrin--current-font-height)
+      (when wttrin--face-remap-cookie
+        (face-remap-remove-relative wttrin--face-remap-cookie))
+      (setq wttrin--face-remap-cookie
+            (face-remap-add-relative 'default
+                                     :family wttrin-font-name
+                                     :height height))
+      (setq wttrin--current-font-height height))))
+
+(defun wttrin--update-layout (&rest _)
+  "Auto-fit the font (when enabled), then center the block in the buffer's window.
+Accepts and ignores hook arguments, so it is safe on
+`window-configuration-change-hook'.  No-op when the buffer has no window."
+  (let ((win (get-buffer-window (current-buffer))))
+    (when win
+      (when wttrin-auto-fit-font
+        (wttrin--apply-fit-font win))
+      (wttrin--center-buffer win))))
+
 (defun wttrin--display-weather (query raw-string &optional error-msg display address)
   "Display weather RAW-STRING for QUERY in the weather buffer.
 QUERY is the location wttr.in was fetched with — the cache key and the buffer's
@@ -1063,7 +1199,9 @@ coordinates but can name the place)."
         ;; buffer is taller than the window a reused window can keep an old
         ;; mid-buffer window-start, hiding the weather above the fold.
         (let ((win (get-buffer-window buffer)))
-          (when win (set-window-start win (point-min))))
+          (when win
+            (set-window-start win (point-min))
+            (wttrin--update-layout)))
 
         (setq-local wttrin--current-location query)
         (setq-local wttrin--current-display display)
