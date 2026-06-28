@@ -269,11 +269,11 @@ If a refresh fails, the emoji dims to gray and the tooltip tells you what went w
 *** Weather for Your Current Location
 If you don't want to type your city by hand, wttrin can detect it for you.
 
-**From the picker (weather here, right now):** run =M-x wttrin= and pick the first entry, "Current location (detect)". wttrin looks up your city via IP geolocation and shows its weather. If the guess is wrong (VPN, mobile hotspot), the detected city is right there in the buffer header, so just open the picker again and type the correct city.
+*From the picker (weather here, right now):* run =M-x wttrin= and pick the first entry, "Current location (detect)". wttrin looks up your city via IP geolocation and shows its weather. If the guess is wrong (VPN, mobile hotspot), the detected city is right there in the buffer header, so just open the picker again and type the correct city.
 
-**Make the detected city your default:** in that weather buffer, press =d=. The detected city becomes =wttrin-favorite-location= (what the mode-line tracks). With =savehist-mode= on, the favorite persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
+*Make the detected city your default:* in that weather buffer, press =d=. The detected city becomes =wttrin-favorite-location= (what the mode-line tracks). With =savehist-mode= on, the favorite persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
 
-**Always use my current location:** run =M-x wttrin-use-current-location=, or set the variable directly:
+*Always use my current location:* run =M-x wttrin-use-current-location=, or set the variable directly:
 
 #+begin_src emacs-lisp
   (setq wttrin-favorite-location t)
@@ -291,7 +291,7 @@ The default lookup provider is =ipapi.co=. Two alternatives ship with the packag
 
 *Note:* IP-based geolocation can be wrong when you are behind a VPN or using a mobile hotspot. If you prefer, set =wttrin-favorite-location= directly to any city string that wttr.in understands.
 
-**Higher accuracy via an external command:** IP geolocation only finds your network's exit point, which on a VPN or cellular hotspot can be the wrong city or state. For a more accurate fix, point =wttrin-geolocation-command= at a command that returns your coordinates as JSON:
+*Higher accuracy via an external command:* IP geolocation only finds your network's exit point, which on a VPN or cellular hotspot can be the wrong city or state. For a more accurate fix, point =wttrin-geolocation-command= at a command that returns your coordinates as JSON:
 
 #+begin_src emacs-lisp
   (setq wttrin-geolocation-command "your-location-script --json")
@@ -313,7 +313,7 @@ Two ready-to-adapt example commands live in [[file:examples/geolocation/][exampl
 
 The older =M-x wttrin-set-location-from-geolocation= command still works but is deprecated in favor of the picker entry above.
 
-**Turning geolocation off:** geolocation is on by default. To opt out — no "Current location" entry in the picker, no detection requests — set:
+*Turning geolocation off:* geolocation is on by default. To opt out — no "Current location" entry in the picker, no detection requests — set:
 
 #+begin_src emacs-lisp
   (setq wttrin-geolocation-enabled nil)
