@@ -185,6 +185,19 @@ You can change the font size by changing the font height. The default is 130. No
   (setq wttrin-font-height 120)
 #+end_src
 
+*** Auto-Fit and Centering
+The weather block is centered horizontally in the window, so the art sits in the middle rather than hugging the left edge. That's automatic; there's nothing to set.
+
+If you'd rather the font size itself to the window, turn on auto-fit. When it's on, =wttrin= grows or shrinks the font so the whole report fits top to bottom (down to the row just past the footer), clamped between a floor and a cap, and recomputes when you resize the window.
+
+#+begin_src emacs-lisp
+  (setq wttrin-auto-fit-font t)         ;; off by default
+  (setq wttrin-font-height-min 100)     ;; floor: never smaller than this
+  (setq wttrin-font-height-max 200)     ;; cap: never larger than this
+#+end_src
+
+With auto-fit off (the default) the font stays fixed at =wttrin-font-height= above.
+
 *** Unit System
 Wttrin's default is to select the unit system appropriate for the location you query. If you'd rather see everything in the units you're used to:
 
