@@ -123,16 +123,16 @@ A cap so the auto-fitted font never becomes absurdly large."
   :type 'integer)
 
 (defcustom wttrin-default-locations '("Honolulu, HI"
-									  "Berkeley, CA"
-									  "New Orleans, LA"
-									  "New York, NY"
+                                      "Berkeley, CA"
+                                      "New Orleans, LA"
+                                      "New York, NY"
                                       "London, GB"
                                       "Paris, FR"
                                       "Berlin, DE"
                                       "Naples, IT"
                                       "Athens, GR"
-									  "Kyiv, UA"
-									  "Tokyo, JP"
+                                      "Kyiv, UA"
+                                      "Tokyo, JP"
                                       "Taipei, TW")
   "Specify default locations list for quick completion."
   :group 'wttrin
