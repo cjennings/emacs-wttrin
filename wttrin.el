@@ -1216,22 +1216,34 @@ coordinates but can name the place)."
         (setq-local wttrin--current-address address)
         (wttrin--debug-mode-line-info)))))
 
+(defvar wttrin--request-counter 0
+  "Monotonic counter for weather requests, used to drop stale async responses.")
+
+(defvar-local wttrin--current-request-id nil
+  "Request id of the most recent query for this weather buffer.")
+
 (defun wttrin-query (query &optional display address)
   "Asynchronously query weather for QUERY, display the result when ready.
 QUERY is what weather is fetched by (and the cache key).  Optional DISPLAY is
 the name shown in the header (a saved-location name); when nil it falls back to
 QUERY.  Optional ADDRESS is shown on a \"Location:\" line, used when QUERY is raw
 coordinates from a geolocation command."
-  (let ((buffer (get-buffer-create (format "*wttr.in*"))))
+  (let ((buffer (get-buffer-create (format "*wttr.in*")))
+        (request-id (setq wttrin--request-counter (1+ wttrin--request-counter))))
     (switch-to-buffer buffer)
     (setq buffer-read-only nil)
     (erase-buffer)
     (insert "Loading weather for " (or display query) "...")
     (setq buffer-read-only t)
+    (setq-local wttrin--current-request-id request-id)
     (wttrin--get-cached-or-fetch
      query
      (lambda (raw-string &optional error-msg)
-       (when (buffer-live-p buffer)
+       ;; The single *wttr.in* buffer is reused, so ignore a response whose
+       ;; query was superseded by a newer one before it returned.
+       (when (and (buffer-live-p buffer)
+                  (= request-id
+                     (buffer-local-value 'wttrin--current-request-id buffer)))
          (with-current-buffer buffer
            (wttrin--display-weather query raw-string error-msg display address)))))))
 
