@@ -7,7 +7,7 @@
 ;;                   ono hiroko (kuanyui) <azazabc123@gmail.com>
 ;; Version: 0.3.2
 ;; Package-Requires: ((emacs "25.1") (xterm-color "1.0"))
-;; Keywords: weather, wttrin, games
+;; Keywords: weather, wttrin
 ;; URL: https://github.com/cjennings/emacs-wttrin
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later

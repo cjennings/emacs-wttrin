@@ -5,7 +5,7 @@
          "Emacs Frontend for Service wttr.in")
 
 (website-url "https://github.com/cjennings/emacs-wttrin")
-(keywords "weather" "wttrin" "games")
+(keywords "weather" "wttrin")
 
 (package-file "wttrin.el")
 
