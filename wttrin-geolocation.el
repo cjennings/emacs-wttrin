@@ -81,7 +81,8 @@ This is the opt-in accuracy path.  The command may do whatever the system
 supports (a WiFi scan, a GPS read) to beat IP geolocation, and it runs
 asynchronously so a multi-second lookup does not block Emacs.  The package
 ships no command and assumes nothing about the OS or network stack, so it is
-inert until set.
+inert until set.  Ready-to-adapt example commands ship under the package's
+examples/geolocation/ directory.
 
 On any failure (the command is unset, exits non-zero, or prints no parseable
 lat/lng), wttrin falls back to the IP provider named by
