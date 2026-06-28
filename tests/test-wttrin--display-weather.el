@@ -51,7 +51,10 @@ Weather report: Paris, France
 ;;; Normal Cases
 
 (ert-deftest test-wttrin--display-weather-normal-valid-data-creates-buffer ()
-  "Test that valid weather data creates and displays buffer correctly."
+  "Test that valid weather data creates and fills the buffer correctly.
+Display is the interactive command's job (wttrin-query selects the buffer at
+invocation); this async render only updates content, so it does not select a
+window."
   (test-wttrin--display-weather-setup)
   (unwind-protect
       (testutil-wttrin-with-clean-weather-buffer
@@ -59,9 +62,6 @@ Weather report: Paris, France
 
         ;; Buffer should exist
         (should (get-buffer "*wttr.in*"))
-
-        ;; Buffer should be displayed
-        (should (get-buffer-window "*wttr.in*"))
 
         ;; Buffer should have content
         (with-current-buffer "*wttr.in*"

@@ -1176,7 +1176,11 @@ coordinates but can name the place)."
                      "Cannot retrieve weather data. Perhaps the location was misspelled?"))
       (wttrin--add-to-location-history display)
       (let ((buffer (get-buffer-create (format "*wttr.in*"))))
-        (switch-to-buffer buffer)
+        ;; Render into the buffer without selecting it.  This runs from an
+        ;; async callback; the command (wttrin-query) already showed the buffer
+        ;; at invocation time, so re-selecting here would steal focus if the
+        ;; user moved away while the fetch was in flight.
+        (set-buffer buffer)
 
         ;; wttrin-mode calls kill-all-local-variables, so it must run
         ;; before setting any buffer-local state (xterm-color, location)
