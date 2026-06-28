@@ -1060,13 +1060,23 @@ properties).  Returns 0 for nil or empty TEXT."
 
 (defun wttrin--center-margin (block-width window-width)
   "Return the left margin that centers BLOCK-WIDTH within WINDOW-WIDTH.
-Both are column counts.  The result is floored to a whole column and is never
-negative, so a block at least as wide as the window yields 0.  Non-integer
-inputs yield 0."
+Both are in the same unit (columns or pixels — `wttrin--center-buffer' passes
+pixels).  The result is floored to a whole unit and is never negative, so a
+block at least as wide as the window yields 0.  Non-integer inputs yield 0."
   (if (and (integerp block-width) (integerp window-width)
            (> window-width block-width))
       (/ (- window-width block-width) 2)
     0))
+
+(defun wttrin--fit-inputs-usable-p (block-cols avail-px char-px cur-height)
+  "Return non-nil when the auto-fit inputs are usable.
+BLOCK-COLS and CUR-HEIGHT must be positive integers, AVAIL-PX and CHAR-PX
+positive numbers.  Guards `wttrin--fit-font-height' against a divide-by-zero or
+a nonsense ratio."
+  (and (integerp block-cols) (> block-cols 0)
+       (numberp avail-px) (> avail-px 0)
+       (numberp char-px) (> char-px 0)
+       (integerp cur-height) (> cur-height 0)))
 
 (defun wttrin--fit-font-height (block-cols avail-px char-px cur-height floor cap)
   "Return a font height (1/10 pt) so BLOCK-COLS chars span AVAIL-PX pixels.
@@ -1075,10 +1085,7 @@ the ratio of AVAIL-PX to the block's current pixel width, then clamps to
 \[FLOOR, CAP].  When an input is unusable (non-positive BLOCK-COLS, CHAR-PX,
 AVAIL-PX, or CUR-HEIGHT), the current height is returned, still clamped."
   (let ((target
-         (if (and (integerp block-cols) (> block-cols 0)
-                  (numberp avail-px) (> avail-px 0)
-                  (numberp char-px) (> char-px 0)
-                  (integerp cur-height) (> cur-height 0))
+         (if (wttrin--fit-inputs-usable-p block-cols avail-px char-px cur-height)
              (round (* cur-height (/ (float avail-px) (* block-cols char-px))))
            cur-height)))
     (max floor (min cap target))))
