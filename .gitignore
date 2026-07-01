@@ -16,3 +16,6 @@ __pycache__/
 CLAUDE.md
 githooks/
 *.eln
+
+# Claude Code: task archive (follows todo file privacy)
+/archive/task-archive.org
