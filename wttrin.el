@@ -1310,6 +1310,25 @@ coordinates but can name the place)."
 (defvar-local wttrin--current-request-id nil
   "Request id of the most recent query for this weather buffer.")
 
+(defun wttrin--render-loading-placeholder (query display)
+  "Show the loading placeholder for QUERY in the current buffer.
+DISPLAY is the name to show (a saved-location name); when nil it falls back to
+QUERY.  Erases the buffer, inserts the one-line placeholder, resets the font to
+the base height (dropping any auto-fit remap from the previous weather), and
+centers it via `wttrin--update-layout'.  The explicit centering matters on an
+`a' switch: the *wttr.in* buffer is already displayed, so
+`window-configuration-change-hook' does not fire and the placeholder would
+otherwise keep the previous weather block's window margin."
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (insert "Loading weather for " (or display query) "..."))
+  (setq buffer-read-only t)
+  ;; The placeholder is one line; keep auto-fit off it (weather not yet rendered)
+  ;; and show it at the base font rather than the previous weather's size.
+  (setq-local wttrin--weather-rendered nil)
+  (wttrin--reset-font-height)
+  (wttrin--update-layout))
+
 (defun wttrin-query (query &optional display address)
   "Asynchronously query weather for QUERY, display the result when ready.
 QUERY is what weather is fetched by (and the cache key).  Optional DISPLAY is
@@ -1319,15 +1338,8 @@ coordinates from a geolocation command."
   (let ((buffer (get-buffer-create (format "*wttr.in*")))
         (request-id (setq wttrin--request-counter (1+ wttrin--request-counter))))
     (switch-to-buffer buffer)
-    (setq buffer-read-only nil)
-    (erase-buffer)
-    (insert "Loading weather for " (or display query) "...")
-    (setq buffer-read-only t)
     (setq-local wttrin--current-request-id request-id)
-    ;; The placeholder is one line; keep auto-fit off it and show it at the base
-    ;; font rather than the previous weather's auto-fitted (possibly capped) size.
-    (setq-local wttrin--weather-rendered nil)
-    (wttrin--reset-font-height)
+    (wttrin--render-loading-placeholder query display)
     (wttrin--get-cached-or-fetch
      query
      (lambda (raw-string &optional error-msg)
