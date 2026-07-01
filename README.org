@@ -108,7 +108,7 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, the footer shows two groups of keys. Keys that act on the view: `a` for another location, `g` to refresh, `q` to quit. Keys that act on your saved locations: `s` to save the shown location, `d` to make it your default, `r` to rename a saved location, and `x` to remove one.
 
-Pressing `d` sets =wttrin-favorite-location= to the location on screen and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick. (On a geolocation-detected buffer, `d` first prompts for a name and saves it — see Naming Locations.)
+Pressing `d` makes the location on screen your default and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. This works alongside a =wttrin-favorite-location= you set in your init: that option is your base default, and a location you promote with `d` overrides it and persists — so a `d` choice is never wiped out by the init value on the next restart. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick. (On a geolocation-detected buffer, `d` first prompts for a name and saves it — see Naming Locations.)
 
 If you're looking at cached data, a line below the weather art tells you how old it is (e.g., "Last updated: 2:30 PM (5 minutes ago)").
 
@@ -284,7 +284,7 @@ If you don't want to type your city by hand, wttrin can detect it for you.
 
 *From the picker (weather here, right now):* run =M-x wttrin= and pick the first entry, "Current location (detect)". wttrin looks up your city via IP geolocation and shows its weather. If the guess is wrong (VPN, mobile hotspot), the detected city is right there in the buffer header, so just open the picker again and type the correct city.
 
-*Make the detected city your default:* in that weather buffer, press =d=. The detected city becomes =wttrin-favorite-location= (what the mode-line tracks). With =savehist-mode= on, the favorite persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
+*Make the detected city your default:* in that weather buffer, press =d=. The detected city becomes your default (what the mode-line tracks), overriding any =wttrin-favorite-location= you set in your init. With =savehist-mode= on, the choice persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
 
 *Always use my current location:* run =M-x wttrin-use-current-location=, or set the variable directly:
 

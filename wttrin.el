@@ -244,6 +244,21 @@ A bare string S used anywhere a location is expected is shorthand for
   :type '(alist :key-type (string :tag "Name")
                 :value-type (string :tag "Query")))
 
+(defvar wttrin--favorite-override nil
+  "Runtime favorite set by `d'/`wttrin-make-default' and the geolocation commands.
+Persisted across sessions via savehist.  When non-nil it shadows the configured
+`wttrin-favorite-location', so a favorite chosen at runtime survives a restart
+even when the user also sets `wttrin-favorite-location' in their init.  Carries
+the same tri-state shape as that option: nil (no override), a string, or t
+\(auto-detect).")
+
+(defvar wttrin--saved-locations-runtime nil
+  "Saved-location entries added at runtime via `d' or `wttrin-save-location'.
+Persisted across sessions via savehist.  Overlaid on the configured
+`wttrin-saved-locations' by `wttrin--saved-locations', runtime winning on a name
+collision, so directory edits survive a restart without being clobbered by an
+init that also sets `wttrin-saved-locations'.  An alist of (NAME . QUERY).")
+
 (defvar wttrin--resolved-favorite-location nil
   "Cached geolocation result for `wttrin-favorite-location' = t.
 Holds the resolved \"City, Region\" string so subsequent reads
@@ -254,9 +269,18 @@ do not re-fetch.  Reset implicitly when the Emacs session ends.")
 Prevents duplicate concurrent lookups when several consumers ask
 during the resolution window.")
 
+(defun wttrin--favorite-location ()
+  "Return the effective favorite: the runtime override, else the configured one.
+`wttrin--favorite-override' (set at runtime by `d' and the geolocation commands,
+persisted by savehist) wins over the `wttrin-favorite-location' defcustom, so a
+runtime choice is not clobbered by an init that also sets the option.  Carries
+the option's tri-state shape: nil, a string, or t."
+  (or wttrin--favorite-override wttrin-favorite-location))
+
 (defun wttrin--resolve-favorite-location ()
   "Return the favorite location's query string, or nil if unavailable.
-Resolves `wttrin-favorite-location' across the three modes:
+Resolves the effective favorite (`wttrin--favorite-location') across the three
+modes:
 - nil      -> nil (disabled)
 - a string -> its saved-locations query when the string is a saved name,
               otherwise the string as-is (the query for a plain location)
@@ -264,15 +288,16 @@ Resolves `wttrin-favorite-location' across the three modes:
               and no lookup is in flight, kicks off an async detect
               and returns nil for this call.  The next call after the
               lookup completes returns the resolved string."
-  (cond
-   ((null wttrin-favorite-location) nil)
-   ((stringp wttrin-favorite-location)
-    (wttrin--resolve-location-query wttrin-favorite-location))
-   ((eq wttrin-favorite-location t)
-    (or wttrin--resolved-favorite-location
-        (progn
-          (wttrin--start-favorite-location-detect)
-          nil)))))
+  (let ((fav (wttrin--favorite-location)))
+    (cond
+     ((null fav) nil)
+     ((stringp fav)
+      (wttrin--resolve-location-query fav))
+     ((eq fav t)
+      (or wttrin--resolved-favorite-location
+          (progn
+            (wttrin--start-favorite-location-detect)
+            nil))))))
 
 (defun wttrin--start-favorite-location-detect ()
   "Kick off an async geolocation lookup if one is not already pending.
@@ -296,12 +321,14 @@ call retries."
   "Return a human-readable name for the favorite location.
 For a string favorite this is the string itself (a saved-location name shows as
 its name, not its resolved query).  For t it is the resolved geolocation place,
-or \"current location\" while a lookup is pending.  Nil when disabled."
-  (cond
-   ((stringp wttrin-favorite-location) wttrin-favorite-location)
-   ((eq wttrin-favorite-location t)
-    (or wttrin--resolved-favorite-location "current location"))
-   (t nil)))
+or \"current location\" while a lookup is pending.  Nil when disabled.
+Reads the effective favorite (`wttrin--favorite-location')."
+  (let ((fav (wttrin--favorite-location)))
+    (cond
+     ((stringp fav) fav)
+     ((eq fav t)
+      (or wttrin--resolved-favorite-location "current location"))
+     (t nil))))
 
 (defcustom wttrin-mode-line-refresh-interval 3600
   "Interval in seconds to refresh mode-line weather data.
@@ -599,16 +626,20 @@ Persisted across sessions via `savehist-mode'.")
 (defvar savehist-additional-variables)
 
 (defun wttrin--savehist-register ()
-  "Ensure wttrin's persisted variables are saved by savehist.
-Registers `wttrin--location-history', `wttrin-favorite-location', and
-`wttrin-saved-locations' so they survive across restarts without the Emacs
-custom-variable mechanism.
+  "Ensure wttrin's persisted runtime state is saved by savehist.
+Registers `wttrin--location-history', `wttrin--favorite-override', and
+`wttrin--saved-locations-runtime' so they survive across restarts without the
+Emacs custom-variable mechanism.  Deliberately registers the runtime override
+and runtime directory rather than the `wttrin-favorite-location' and
+`wttrin-saved-locations' defcustoms: those are configuration the user sets in
+init, and persisting them would fight the init on every restart (the value the
+user last chose with `d' would be clobbered by the init `setopt').
 Run both at load and on `savehist-save-hook', so the registration survives a
 user `setq' of `savehist-additional-variables' (a common config pattern) that
 would otherwise drop the entries before they could be saved."
   (add-to-list 'savehist-additional-variables 'wttrin--location-history)
-  (add-to-list 'savehist-additional-variables 'wttrin-favorite-location)
-  (add-to-list 'savehist-additional-variables 'wttrin-saved-locations))
+  (add-to-list 'savehist-additional-variables 'wttrin--favorite-override)
+  (add-to-list 'savehist-additional-variables 'wttrin--saved-locations-runtime))
 
 (with-eval-after-load 'savehist
   (wttrin--savehist-register)
@@ -650,8 +681,8 @@ other, never both."
       (setq wttrin--location-history
             (delete location wttrin--location-history)))))
 
-(defun wttrin--saved-locations ()
-  "Return `wttrin-saved-locations' as a clean list of (NAME . QUERY) pairs.
+(defun wttrin--normalize-location-entries (entries)
+  "Return ENTRIES as a clean list of (NAME . QUERY) pairs.
 Skips malformed entries — non-cons, a non-string name or query, or an empty
 name or query — and trims surrounding whitespace, so stale or hand-edited
 config never errors.  A bare string S is read as (S . S)."
@@ -667,7 +698,24 @@ config never errors.  A bare string S is read as (S . S)."
              (let ((s (string-trim entry)))
                (and (> (length s) 0) (cons s s))))
             (t nil)))
-         wttrin-saved-locations)))
+         entries)))
+
+(defun wttrin--saved-locations ()
+  "Return the effective saved-locations directory as clean (NAME . QUERY) pairs.
+The runtime layer `wttrin--saved-locations-runtime' (set by `d' and
+`wttrin-save-location', persisted by savehist) is overlaid on the configured
+`wttrin-saved-locations', runtime winning on a name collision.  Both layers are
+normalized (malformed entries skipped, whitespace trimmed, a bare string S read
+as (S . S)); runtime entries are listed first, then config entries whose names
+the runtime does not already define."
+  (let* ((runtime (wttrin--normalize-location-entries wttrin--saved-locations-runtime))
+         (runtime-names (mapcar #'car runtime))
+         (config (wttrin--normalize-location-entries wttrin-saved-locations)))
+    (append runtime
+            (delq nil
+                  (mapcar (lambda (entry)
+                            (unless (member (car entry) runtime-names) entry))
+                          config)))))
 
 (defun wttrin--resolve-location-query (selection)
   "Return the query string for a picker SELECTION.
@@ -683,31 +731,38 @@ Used to keep a raw geolocation fix out of history and to decide when the
   (and (stringp string)
        (string-match-p "\\`[ ]*-?[0-9.]+[ ]*,[ ]*-?[0-9.]+[ ]*\\'" string)))
 
-(defun wttrin--saved-locations-without (name)
-  "Return `wttrin-saved-locations' with any entry named NAME removed."
+(defun wttrin--saved-locations-runtime-without (name)
+  "Return `wttrin--saved-locations-runtime' with any entry named NAME removed."
   (delq nil
         (mapcar (lambda (entry)
                   (unless (and (consp entry) (equal (car entry) name)) entry))
-                wttrin-saved-locations)))
+                wttrin--saved-locations-runtime)))
 
 (defun wttrin--put-saved-location (name query)
-  "Add or update NAME -> QUERY in `wttrin-saved-locations'; return the saved name.
-Trims NAME and QUERY.  Signals a `user-error' for an empty name or query, or a
-name equal to the geolocation sentinel.  An existing name has its query updated."
+  "Add or update NAME -> QUERY in the runtime directory; return the saved name.
+Writes `wttrin--saved-locations-runtime' (savehist-persisted), never the
+`wttrin-saved-locations' defcustom, so a runtime save is not clobbered by an
+init that also sets the option.  Trims NAME and QUERY.  Signals a `user-error'
+for an empty name or query, or a name equal to the geolocation sentinel.  An
+existing runtime name has its query updated."
   (let ((name (string-trim (or name "")))
         (query (string-trim (or query ""))))
     (when (string= name "") (user-error "Location name cannot be empty"))
     (when (string= query "") (user-error "Location query cannot be empty"))
     (when (string= name wttrin--geolocation-sentinel)
       (user-error "That name is reserved for the geolocation entry"))
-    (setq wttrin-saved-locations
-          (append (wttrin--saved-locations-without name)
+    (setq wttrin--saved-locations-runtime
+          (append (wttrin--saved-locations-runtime-without name)
                   (list (cons name query))))
     name))
 
 (defun wttrin--remove-saved-location (name)
-  "Remove the saved location named NAME from `wttrin-saved-locations'."
-  (setq wttrin-saved-locations (wttrin--saved-locations-without name)))
+  "Remove the saved location named NAME from the runtime directory.
+Only the runtime layer `wttrin--saved-locations-runtime' is mutated.  An entry
+from the `wttrin-saved-locations' defcustom cannot be deleted here (it is
+re-read from the user's init) and remains in the effective directory."
+  (setq wttrin--saved-locations-runtime
+        (wttrin--saved-locations-runtime-without name)))
 
 (defvar-local wttrin--current-location nil
   "Query for the weather shown in this buffer (the fetch/cache identity).")
@@ -745,8 +800,8 @@ history (the explicit alias wins over a same-named default or history string),
 so each place appears exactly once.  The geolocation sentinel is prepended when
 geolocation is enabled."
   (let* ((saved (mapcar #'car (wttrin--saved-locations)))
-         (favorite (and (stringp wttrin-favorite-location)
-                        (list wttrin-favorite-location)))
+         (favorite (let ((fav (wttrin--favorite-location)))
+                     (and (stringp fav) (list fav))))
          (deduped (delete-dups
                    (append saved favorite
                            (copy-sequence wttrin-default-locations)
@@ -865,7 +920,7 @@ the favorite is updated to NEW."
       (let ((query (cdr entry)))
         (wttrin--remove-saved-location old)
         (wttrin--put-saved-location new query)
-        (when (equal wttrin-favorite-location old)
+        (when (equal (wttrin--favorite-location) old)
           (wttrin--set-favorite-location new))
         (message "Renamed %s to %s" old new))))))
 
@@ -880,16 +935,22 @@ When NAME is the favorite, it is left as a literal query with a warning."
    ((not (assoc name (wttrin--saved-locations)))
     (user-error "No saved location named %s" name))
    ((yes-or-no-p (format "Remove saved location \"%s\"? " name))
-    (let ((query (cdr (assoc name (wttrin--saved-locations)))))
+    (let ((query (cdr (assoc name (wttrin--saved-locations))))
+          (was-favorite (equal (wttrin--favorite-location) name)))
       (wttrin--remove-saved-location name)
-      (wttrin--drop-from-location-history name query))
-    (if (equal wttrin-favorite-location name)
-        (progn
-          (when (bound-and-true-p wttrin-mode-line-mode)
-            (wttrin--mode-line-refresh-now))
-          (message "Removed %s; it was your favorite and is now a literal query until you set a new one"
-                   name))
-      (message "Removed %s" name)))
+      (wttrin--drop-from-location-history name query)
+      (when (and was-favorite (bound-and-true-p wttrin-mode-line-mode))
+        (wttrin--mode-line-refresh-now))
+      (cond
+       ;; Still resolvable means the name comes from the user's init, which the
+       ;; runtime removal can't touch, so the entry stays in the directory.
+       ((assoc name (wttrin--saved-locations))
+        (message "Removed the runtime entry %s; it is still defined in your init (wttrin-saved-locations) and remains in the directory"
+                 name))
+       (was-favorite
+        (message "Removed %s; it was your favorite and is now a literal query until you set a new one"
+                 name))
+       (t (message "Removed %s" name)))))
    (t (message "Cancelled"))))
 
 (defun wttrin--requery-location (new-location)
@@ -1346,12 +1407,14 @@ This creates headroom to avoid frequent cleanups."
 (defun wttrin-set-location-from-geolocation ()
   "Detect your location via IP geolocation and set it as the favorite.
 Uses the provider named by `wttrin-geolocation-provider' to fetch
-\"City, Region\", asks for confirmation, and on yes assigns the
-result to `wttrin-favorite-location'.
+\"City, Region\", asks for confirmation, and on yes makes the result
+the runtime favorite (`wttrin--favorite-override', which shadows the
+`wttrin-favorite-location' option).
 
 With `savehist-mode' on, the favorite persists across sessions
-automatically (wttrin registers it with savehist); no
-`customize-save-variable' step is needed.
+automatically (wttrin registers the override with savehist); no
+`customize-save-variable' step is needed, and it is not overwritten by
+an init that also sets `wttrin-favorite-location'.
 
 IP-based geolocation can be wrong behind a VPN or a mobile hotspot.
 The confirmation prompt shows the detected location so you can
@@ -1373,7 +1436,7 @@ the detected city as your default."
         ((yes-or-no-p (format "Detected location: %s. Set as favorite? "
                               location))
          (wttrin--set-favorite-location location)
-         (message "Set wttrin-favorite-location to: %s%s"
+         (message "Set favorite location to: %s%s"
                   location
                   (if (bound-and-true-p savehist-mode)
                       " (persisted via savehist)."
@@ -1389,13 +1452,14 @@ the detected city as your default."
 ;;;###autoload
 (defun wttrin-use-current-location ()
   "Make your current location the persistent favorite (always auto-detect).
-Sets `wttrin-favorite-location' to t after confirmation, so the mode-line
-and buffer track wherever you are via geolocation rather than a fixed city.
-This is the labeled way to choose auto-detect without typing the bare symbol
-t into your init.
+After confirmation, sets the runtime favorite (`wttrin--favorite-override') to
+t, so the mode-line and buffer track wherever you are via geolocation rather
+than a fixed city.  This is the labeled way to choose auto-detect without typing
+the bare symbol t into your init.
 
-With `savehist-mode' on, the choice persists across sessions automatically.
-Does nothing when `wttrin-geolocation-enabled' is nil."
+With `savehist-mode' on, the choice persists across sessions automatically, and
+is not overwritten by an init that also sets `wttrin-favorite-location'.  Does
+nothing when `wttrin-geolocation-enabled' is nil."
   (interactive)
   (cond
    ((not wttrin-geolocation-enabled)
@@ -1421,15 +1485,17 @@ Does nothing when `wttrin-geolocation-enabled' is nil."
     (message "No location to refresh")))
 
 (defun wttrin--set-favorite-location (location)
-  "Set `wttrin-favorite-location' to LOCATION and drop it from search history.
-LOCATION becomes a permanent default, so it no longer needs a history entry,
-mirroring how `wttrin-default-locations' entries are kept out of history.
-Persistence is handled by `wttrin--savehist-register', which registers the
-variable when savehist loads and again on `savehist-save-hook', so the value
-survives restarts without the Emacs custom-variable mechanism, and setting it
-here works whether or not savehist is loaded."
-  (let ((changed (not (equal location wttrin-favorite-location))))
-    (setq wttrin-favorite-location location)
+  "Set the runtime favorite to LOCATION and drop it from search history.
+Writes `wttrin--favorite-override', not the `wttrin-favorite-location'
+defcustom, so the choice survives a restart even when the user also sets the
+option in their init (the override shadows the config; see
+`wttrin--favorite-location').  LOCATION becomes a permanent default, so it no
+longer needs a history entry, mirroring how `wttrin-default-locations' entries
+are kept out of history.  Persistence is handled by `wttrin--savehist-register',
+which registers the override when savehist loads and again on
+`savehist-save-hook', so setting it works whether or not savehist is loaded."
+  (let ((changed (not (equal location (wttrin--favorite-location)))))
+    (setq wttrin--favorite-override location)
     (setq wttrin--location-history (delete location wttrin--location-history))
     (when (and changed (bound-and-true-p wttrin-mode-line-mode))
       (wttrin--mode-line-refresh-now))))
@@ -1528,7 +1594,7 @@ On failure with no cache, shows error placeholder.
 When `wttrin-favorite-location' is t and geolocation has not yet
 resolved, this call is a no-op; the next tick after resolution
 proceeds normally."
-  (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" wttrin-favorite-location)
+  (wttrin--debug-log "mode-line-fetch: Starting fetch for %s" (wttrin--favorite-location))
   (let ((location (wttrin--resolve-favorite-location)))
     (if (not location)
         (wttrin--debug-log "mode-line-fetch: No favorite location available, skipping")
@@ -1691,9 +1757,9 @@ mode-line state."
 (defun wttrin--mode-line-start ()
   "Start mode-line weather display and refresh timer."
   (wttrin--debug-log "wttrin mode-line: Starting mode-line display (location=%s, interval=%s)"
-                     wttrin-favorite-location
+                     (wttrin--favorite-location)
                      wttrin-mode-line-refresh-interval)
-  (when wttrin-favorite-location
+  (when (wttrin--favorite-location)
     ;; Trigger geolocation resolution in the background if needed; the
     ;; placeholder + scheduled fetch will pick up the resolved string
     ;; on the next tick.

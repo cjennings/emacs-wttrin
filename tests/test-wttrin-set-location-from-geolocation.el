@@ -20,16 +20,24 @@
 (defvar test-wttrin-set-location-from-geolocation--saved-favorite nil
   "Snapshot of `wttrin-favorite-location' restored in teardown.")
 
+(defvar test-wttrin-set-location-from-geolocation--saved-override nil
+  "Snapshot of `wttrin--favorite-override' restored in teardown.")
+
 (defun test-wttrin-set-location-from-geolocation-setup ()
-  "Snapshot `wttrin-favorite-location' and clear it for the test."
+  "Snapshot the configured favorite and runtime override, clearing both."
   (setq test-wttrin-set-location-from-geolocation--saved-favorite
         wttrin-favorite-location)
-  (setq wttrin-favorite-location nil))
+  (setq test-wttrin-set-location-from-geolocation--saved-override
+        wttrin--favorite-override)
+  (setq wttrin-favorite-location nil)
+  (setq wttrin--favorite-override nil))
 
 (defun test-wttrin-set-location-from-geolocation-teardown ()
-  "Restore `wttrin-favorite-location' to its pre-test value."
+  "Restore the configured favorite and runtime override to pre-test values."
   (setq wttrin-favorite-location
-        test-wttrin-set-location-from-geolocation--saved-favorite))
+        test-wttrin-set-location-from-geolocation--saved-favorite)
+  (setq wttrin--favorite-override
+        test-wttrin-set-location-from-geolocation--saved-override))
 
 ;;; Helpers
 
@@ -51,7 +59,7 @@
       (progn
         (test-wttrin-set-location--with-detected "Berkeley, California" t
           (wttrin-set-location-from-geolocation))
-        (should (string= "Berkeley, California" wttrin-favorite-location)))
+        (should (string= "Berkeley, California" (wttrin--favorite-location))))
     (test-wttrin-set-location-from-geolocation-teardown)))
 
 (ert-deftest test-wttrin-set-location-from-geolocation-normal-decline-leaves-variable-unchanged ()
@@ -84,7 +92,7 @@ favorite immediately instead of at the next scheduled fetch."
                   ((symbol-function 'wttrin--mode-line-set-placeholder)
                    (lambda () nil)))
           (wttrin-set-location-from-geolocation))
-        (should (string= "Berkeley, California" wttrin-favorite-location))
+        (should (string= "Berkeley, California" (wttrin--favorite-location)))
         (should fetched))
     (test-wttrin-set-location-from-geolocation-teardown)))
 
@@ -97,7 +105,7 @@ favorite immediately instead of at the next scheduled fetch."
       (progn
         (test-wttrin-set-location--with-detected "München, Bayern" t
           (wttrin-set-location-from-geolocation))
-        (should (string= "München, Bayern" wttrin-favorite-location)))
+        (should (string= "München, Bayern" (wttrin--favorite-location))))
     (test-wttrin-set-location-from-geolocation-teardown)))
 
 ;;; Error Cases

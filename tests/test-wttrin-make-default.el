@@ -6,7 +6,9 @@
 
 ;; Unit tests for wttrin--set-favorite-location and wttrin-make-default,
 ;; the weather-buffer command (bound to "d") that promotes the displayed
-;; location to the persisted favorite.
+;; location to the persisted favorite.  The favorite is written to the runtime
+;; override `wttrin--favorite-override' (not the `wttrin-favorite-location'
+;; defcustom), and read back through `wttrin--favorite-location'.
 
 ;;; Code:
 
@@ -21,26 +23,30 @@
 ;;; Normal Cases
 
 (ert-deftest test-wttrin--set-favorite-location-normal-sets-variable ()
-  "Normal: sets `wttrin-favorite-location' to the given location."
+  "Normal: sets the runtime favorite (leaving the config option untouched)."
   (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override nil)
         (savehist-additional-variables nil))
     (wttrin--set-favorite-location "Paris, FR")
-    (should (equal wttrin-favorite-location "Paris, FR"))))
+    (should (equal wttrin--favorite-override "Paris, FR"))
+    (should (equal "Paris, FR" (wttrin--favorite-location)))))
 
 (ert-deftest test-wttrin--set-favorite-location-error-no-savehist-loaded ()
   "Error: setting the favorite works even when savehist is not loaded.
 The setter must not touch `savehist-additional-variables' directly (it may be
 unbound); persistence is left to `wttrin--savehist-register'."
-  (let ((wttrin-favorite-location nil))
+  (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override nil))
     ;; Simulate savehist absent: the variable is unbound.
     (cl-letf (((symbol-function 'wttrin--savehist-register)
                (lambda () (error "Should not be called from the setter"))))
       (wttrin--set-favorite-location "Oslo, NO")
-      (should (equal wttrin-favorite-location "Oslo, NO")))))
+      (should (equal wttrin--favorite-override "Oslo, NO")))))
 
 (ert-deftest test-wttrin--set-favorite-location-normal-drops-from-history ()
   "Normal: promoting a location removes it from the search history."
   (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override nil)
         (wttrin--location-history '("Reykjavik" "Oslo, NO")))
     (wttrin--set-favorite-location "Reykjavik")
     (should-not (member "Reykjavik" wttrin--location-history))
@@ -49,16 +55,19 @@ unbound); persistence is left to `wttrin--savehist-register'."
 (ert-deftest test-wttrin--set-favorite-location-boundary-not-in-history-is-noop ()
   "Boundary: promoting a location absent from history leaves history intact."
   (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override nil)
         (wttrin--location-history '("Oslo, NO")))
     (wttrin--set-favorite-location "Berkeley, CA")
     (should (equal wttrin--location-history '("Oslo, NO")))))
 
 (ert-deftest test-wttrin-favorite-savehist-register-includes-favorite ()
-  "Normal: `wttrin--savehist-register' registers the favorite for persistence."
+  "Normal: `wttrin--savehist-register' registers the runtime override, not the
+`wttrin-favorite-location' defcustom."
   (require 'savehist)
   (let ((savehist-additional-variables '(kill-ring)))
     (wttrin--savehist-register)
-    (should (memq 'wttrin-favorite-location savehist-additional-variables))))
+    (should (memq 'wttrin--favorite-override savehist-additional-variables))
+    (should-not (memq 'wttrin-favorite-location savehist-additional-variables))))
 
 ;;; --------------------------------------------------------------------------
 ;;; mode-line refresh when the favorite changes
@@ -70,6 +79,7 @@ unbound); persistence is left to `wttrin--savehist-register'."
   "Normal: changing the favorite while the mode-line is active clears the
 stale cache and fetches fresh weather for the new location immediately."
   (let ((wttrin-favorite-location "Oslo, NO")
+        (wttrin--favorite-override nil)
         (wttrin-mode-line-mode t)
         (wttrin--mode-line-cache (cons 0.0 "Oslo, NO: sun"))
         (fetched nil))
@@ -86,6 +96,7 @@ stale cache and fetches fresh weather for the new location immediately."
 (ert-deftest test-wttrin--set-favorite-location-boundary-mode-line-off-no-fetch ()
   "Boundary: with the mode-line inactive, changing the favorite does not fetch."
   (let ((wttrin-favorite-location "Oslo, NO")
+        (wttrin--favorite-override nil)
         (wttrin-mode-line-mode nil)
         (fetched nil))
     (cl-letf (((symbol-function 'wttrin--mode-line-fetch-weather)
@@ -95,7 +106,8 @@ stale cache and fetches fresh weather for the new location immediately."
 
 (ert-deftest test-wttrin--set-favorite-location-boundary-unchanged-no-fetch ()
   "Boundary: re-promoting the current favorite does not refetch the mode-line."
-  (let ((wttrin-favorite-location "Paris, FR")
+  (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override "Paris, FR")
         (wttrin-mode-line-mode t)
         (fetched nil))
     (cl-letf (((symbol-function 'wttrin--mode-line-fetch-weather)
@@ -114,22 +126,26 @@ stale cache and fetches fresh weather for the new location immediately."
 (ert-deftest test-wttrin-make-default-normal-sets-favorite-from-current ()
   "Normal: promotes the buffer's current location to the favorite."
   (let ((wttrin-favorite-location nil)
+        (wttrin--favorite-override nil)
+        (wttrin-saved-locations nil)
+        (wttrin--saved-locations-runtime nil)
         (savehist-additional-variables nil))
     (with-temp-buffer
       (setq-local wttrin--current-location "Tokyo, JP")
       (wttrin-make-default)
-      (should (equal wttrin-favorite-location "Tokyo, JP")))))
+      (should (equal "Tokyo, JP" (wttrin--favorite-location))))))
 
 ;;; Boundary Cases
 
 (ert-deftest test-wttrin-make-default-boundary-nil-current-leaves-favorite ()
   "Boundary: no current location is a no-op that leaves the favorite intact."
   (let ((wttrin-favorite-location "Berkeley, CA")
+        (wttrin--favorite-override nil)
         (savehist-additional-variables nil))
     (with-temp-buffer
       (setq-local wttrin--current-location nil)
       (wttrin-make-default)
-      (should (equal wttrin-favorite-location "Berkeley, CA")))))
+      (should (equal "Berkeley, CA" (wttrin--favorite-location))))))
 
 ;;; --------------------------------------------------------------------------
 ;;; favorite in completion candidates
@@ -141,7 +157,8 @@ stale cache and fetches fresh weather for the new location immediately."
   "Normal: a typed-in favorite is offered in the picker, at the front."
   (let ((wttrin-default-locations '("Honolulu, HI" "Berkeley, CA"))
         (wttrin--location-history nil)
-        (wttrin-favorite-location "Reykjavik"))
+        (wttrin-favorite-location "Reykjavik")
+        (wttrin--favorite-override nil))
     (should (equal (wttrin--completion-candidates)
                    (list wttrin--geolocation-sentinel
                          "Reykjavik" "Honolulu, HI" "Berkeley, CA")))))
@@ -153,14 +170,16 @@ stale cache and fetches fresh weather for the new location immediately."
   (require 'cl-lib)
   (let ((wttrin-default-locations '("Honolulu, HI" "Berkeley, CA"))
         (wttrin--location-history nil)
-        (wttrin-favorite-location "Berkeley, CA"))
+        (wttrin-favorite-location "Berkeley, CA")
+        (wttrin--favorite-override nil))
     (should (= 1 (cl-count "Berkeley, CA" (wttrin--completion-candidates) :test #'equal)))))
 
 (ert-deftest test-wttrin-make-default-boundary-nil-favorite-candidates-unchanged ()
   "Boundary: nil favorite leaves the candidate list as defaults plus history."
   (let ((wttrin-default-locations '("Honolulu, HI"))
         (wttrin--location-history '("Oslo, NO"))
-        (wttrin-favorite-location nil))
+        (wttrin-favorite-location nil)
+        (wttrin--favorite-override nil))
     (should (equal (wttrin--completion-candidates)
                    (list wttrin--geolocation-sentinel "Honolulu, HI" "Oslo, NO")))))
 

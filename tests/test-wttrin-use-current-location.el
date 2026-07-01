@@ -18,14 +18,20 @@
 (defvar test-wttrin-use-current-location--saved nil
   "Snapshot of `wttrin-favorite-location' restored in teardown.")
 
+(defvar test-wttrin-use-current-location--saved-override nil
+  "Snapshot of `wttrin--favorite-override' restored in teardown.")
+
 (defun test-wttrin-use-current-location-setup ()
-  "Snapshot `wttrin-favorite-location' and clear it."
+  "Snapshot the configured favorite and the runtime override, clearing both."
   (setq test-wttrin-use-current-location--saved wttrin-favorite-location)
-  (setq wttrin-favorite-location nil))
+  (setq test-wttrin-use-current-location--saved-override wttrin--favorite-override)
+  (setq wttrin-favorite-location nil)
+  (setq wttrin--favorite-override nil))
 
 (defun test-wttrin-use-current-location-teardown ()
-  "Restore `wttrin-favorite-location'."
-  (setq wttrin-favorite-location test-wttrin-use-current-location--saved))
+  "Restore the configured favorite and the runtime override."
+  (setq wttrin-favorite-location test-wttrin-use-current-location--saved)
+  (setq wttrin--favorite-override test-wttrin-use-current-location--saved-override))
 
 ;;; Normal Cases
 
@@ -37,7 +43,7 @@
         (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
                   ((symbol-function 'message) (lambda (&rest _) nil)))
           (wttrin-use-current-location))
-        (should (eq t wttrin-favorite-location)))
+        (should (eq t (wttrin--favorite-location))))
     (test-wttrin-use-current-location-teardown)))
 
 (ert-deftest test-wttrin-use-current-location-normal-decline-leaves-unchanged ()
@@ -69,7 +75,7 @@ location immediately rather than at the next scheduled fetch."
                   ((symbol-function 'wttrin--mode-line-set-placeholder)
                    (lambda () nil)))
           (wttrin-use-current-location))
-        (should (eq t wttrin-favorite-location))
+        (should (eq t (wttrin--favorite-location)))
         (should fetched))
     (test-wttrin-use-current-location-teardown)))
 
