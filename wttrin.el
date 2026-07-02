@@ -35,6 +35,7 @@
 
 (require 'face-remap)
 (require 'subr-x)                        ; string-trim
+(require 'json)                          ; forecast j1 parsing
 (require 'url)
 
 ;; Declare xterm-color functions (loaded on-demand)
@@ -338,6 +339,17 @@ wastes their bandwidth.  Be kind to the free service."
   :group 'wttrin
   :type 'integer)
 
+(defcustom wttrin-mode-line-tooltip-forecast-days 0
+  "Days of forecast to append to the mode-line weather tooltip.
+0 (the default) keeps the tooltip current-conditions-only.  A positive
+value appends one line per day: the remainder of today, tomorrow, and
+the day after, labeled Today / Tomorrow / weekday.  wttr.in's JSON feed
+carries at most three days, so larger values are capped at what the
+feed returns.  When non-zero, the mode-line refresh performs a second
+fetch (?format=j1) for the forecast data."
+  :group 'wttrin
+  :type 'integer)
+
 (defcustom wttrin-mode-line-startup-delay 3
   "Seconds to delay initial mode-line weather fetch after Emacs starts.
 This allows network stack and daemon initialization to complete before
@@ -431,6 +443,14 @@ Set this to t BEFORE loading wttrin, typically in your init file:
   "Cached mode-line weather data as (timestamp . data) cons cell.
 When non-nil, car is the `float-time' when data was fetched,
 and cdr is the weather string from the API.")
+
+(defvar wttrin--mode-line-forecast-cache nil
+  "Cached forecast data as a (timestamp . DAY-LIST) cons cell, or nil.
+When non-nil, car is the `float-time' of the fetch and cdr is the parsed
+day list from `wttrin--forecast-parse'.  The raw day list is cached (not
+rendered text) so `wttrin--mode-line-tooltip' formats it at hover time
+against the current `wttrin-mode-line-tooltip-forecast-days' and
+`wttrin-unit-system' values.")
 
 (defvar wttrin--mode-line-rendered-stale nil
   "Whether the mode-line emoji is currently rendered as stale (dimmed).")
@@ -1610,6 +1630,7 @@ proceeds normally."
   (let ((location (wttrin--resolve-favorite-location)))
     (if (not location)
         (wttrin--debug-log "mode-line-fetch: No favorite location available, skipping")
+      (wttrin--mode-line-fetch-forecast location)
       (let* (;; wttr.in format codes: %l=location %c=emoji %t=temp %C=conditions
              (format-params (if wttrin-unit-system
                                 (concat "?" wttrin-unit-system "&format=%l:+%c+%t+%C")
@@ -1659,25 +1680,128 @@ without a separate guard."
     (let ((age (- (float-time) (car cache-entry))))
       (> age (* 2 wttrin-mode-line-refresh-interval)))))
 
+(defun wttrin--forecast-parse (json-string)
+  "Parse a wttr.in ?format=j1 JSON-STRING into a list of day alists.
+Returns the top-level weather array as a list (one alist per day), or
+nil when JSON-STRING is nil, empty, malformed, or missing the weather
+key.  Never signals -- a broken forecast response must not take the
+mode-line fetch down with it."
+  (when (and (stringp json-string) (> (length json-string) 0))
+    (condition-case err
+        (let ((json-object-type 'alist)
+              (json-array-type 'list)
+              (json-key-type 'symbol))
+          (alist-get 'weather (json-read-from-string json-string)))
+      (error
+       (wttrin--debug-log "forecast-parse: %s" (error-message-string err))
+       nil))))
+
+(defun wttrin--forecast-day-label (day index)
+  "Return the tooltip label for DAY (a day alist) at INDEX in the forecast.
+Index 0 is \"Today\" and 1 is \"Tomorrow\"; later days use the abbreviated
+weekday name from DAY's date field (\"Fri\").  Falls back to the raw date
+string when it doesn't parse, and to the index when there's no date."
+  (let ((date (alist-get 'date day)))
+    (cond
+     ((= index 0) "Today")
+     ((= index 1) "Tomorrow")
+     ((stringp date)
+      (condition-case nil
+          (let ((parsed (parse-time-string date)))
+            (format-time-string
+             "%a" (encode-time 0 0 12 (nth 3 parsed) (nth 4 parsed)
+                               (nth 5 parsed))))
+        (error date)))
+     (t (format "Day %d" (1+ index))))))
+
+(defun wttrin--forecast-midday-desc (day)
+  "Return DAY's midday weather description, or nil when unavailable.
+Reads the hourly entry whose time is \"1200\" (falling back to the middle
+entry) and returns the first weatherDesc value."
+  (let* ((hourly (alist-get 'hourly day))
+         (midday (or (seq-find (lambda (h) (equal (alist-get 'time h) "1200"))
+                               hourly)
+                     (nth (/ (length hourly) 2) hourly))))
+    (when midday
+      (let ((desc (alist-get 'value (car (alist-get 'weatherDesc midday)))))
+        ;; wttr.in pads some description values with trailing whitespace.
+        (when (stringp desc) (string-trim desc))))))
+
+(defun wttrin--forecast-format (days count)
+  "Format up to COUNT entries of DAYS (parsed day alists) for the tooltip.
+One line per day: \"<label> <min>-<max>°F <midday description>\" -- °F when
+`wttrin-unit-system' is \"u\", otherwise °C (both are present in the j1
+data; wttr.in's own location-based default can't be known here).  The
+description is omitted when the day has no hourly data.  Returns nil when
+DAYS is nil or COUNT is not positive."
+  (when (and days (> count 0))
+    (let* ((fahrenheit (equal wttrin-unit-system "u"))
+           (min-key (if fahrenheit 'mintempF 'mintempC))
+           (max-key (if fahrenheit 'maxtempF 'maxtempC))
+           (unit (if fahrenheit "°F" "°C"))
+           (index -1))
+      (mapconcat
+       (lambda (day)
+         (setq index (1+ index))
+         (let ((desc (wttrin--forecast-midday-desc day)))
+           (concat (wttrin--forecast-day-label day index)
+                   (format " %s-%s%s"
+                           (alist-get min-key day)
+                           (alist-get max-key day)
+                           unit)
+                   (when desc (concat " " desc)))))
+       (seq-take days count)
+       "\n"))))
+
+(defun wttrin--mode-line-fetch-forecast (location)
+  "Fetch the j1 forecast for LOCATION into `wttrin--mode-line-forecast-cache'.
+Fires only when `wttrin-mode-line-tooltip-forecast-days' is positive.
+On a failed fetch or unparseable response the previous cache is kept --
+the tooltip just shows whatever forecast it last had."
+  (when (> wttrin-mode-line-tooltip-forecast-days 0)
+    (let ((url (concat "https://wttr.in/"
+                       (url-hexify-string location)
+                       "?format=j1")))
+      (wttrin--debug-log "forecast-fetch: URL = %s" url)
+      (wttrin--fetch-url
+       url
+       (lambda (data &optional _error-msg)
+         (let ((days (wttrin--forecast-parse data)))
+           (if days
+               (setq wttrin--mode-line-forecast-cache
+                     (cons (float-time) days))
+             (wttrin--debug-log
+              "forecast-fetch: no usable forecast, keeping previous"))))))))
+
 (defun wttrin--mode-line-tooltip (&optional _window _object _pos)
   "Compute tooltip text from `wttrin--mode-line-cache'.
 Calculates age at call time so the tooltip is always current.
 If staleness has changed since the last render, triggers a re-render
 so the emoji dimming matches.
+When `wttrin-mode-line-tooltip-forecast-days' is positive and a forecast
+has been fetched, the forecast lines sit between the conditions and the
+age line.
 Optional arguments are ignored (required by `help-echo' function protocol)."
   (when wttrin--mode-line-cache
     (let* ((timestamp (car wttrin--mode-line-cache))
            (weather-string (cdr wttrin--mode-line-cache))
            (age (- (float-time) timestamp))
            (stale-p (wttrin--mode-line-stale-p wttrin--mode-line-cache))
-           (age-str (wttrin--format-age age)))
+           (age-str (wttrin--format-age age))
+           (forecast (when (> wttrin-mode-line-tooltip-forecast-days 0)
+                       (wttrin--forecast-format
+                        (cdr wttrin--mode-line-forecast-cache)
+                        wttrin-mode-line-tooltip-forecast-days)))
+           (head (if forecast
+                     (concat weather-string "\n" forecast)
+                   weather-string)))
       ;; Re-render emoji if staleness state has changed
       (unless (eq stale-p wttrin--mode-line-rendered-stale)
         (wttrin--mode-line-update-display))
       (if stale-p
           (format "%s\nStale: updated %s — fetch failed, will retry"
-                  weather-string age-str)
-        (format "%s\nUpdated %s" weather-string age-str)))))
+                  head age-str)
+        (format "%s\nUpdated %s" head age-str)))))
 
 (defun wttrin--mode-line-update-display ()
   "Update mode-line display from `wttrin--mode-line-cache'.
