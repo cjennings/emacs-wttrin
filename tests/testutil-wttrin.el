@@ -136,17 +136,32 @@ Other mocks BODY needs can be set in a nested `cl-letf'."
 
 ;;; Test Setup and Teardown
 
+;; Redirect state-file writes for the whole batch: any test that exercises a
+;; location setter triggers `wttrin--state-save', which must never touch the
+;; developer's real `wttrin-state-file'.  Process-wide, set once at load.
+(setq wttrin-state-file
+      (expand-file-name (format "wttrin-test-state-%d.el" (emacs-pid))
+                        temporary-file-directory))
+
 (defun testutil-wttrin-setup ()
   "Common setup for wttrin tests.
 Call this at the beginning of each test."
   (testutil-wttrin-clear-cache)
-  (setq wttrin--force-refresh nil))
+  (setq wttrin--force-refresh nil)
+  (setq wttrin--favorite-override nil)
+  (setq wttrin--saved-locations-runtime nil)
+  (when (file-exists-p wttrin-state-file)
+    (delete-file wttrin-state-file)))
 
 (defun testutil-wttrin-teardown ()
   "Common teardown for wttrin tests.
 Call this at the end of each test."
   (testutil-wttrin-clear-cache)
-  (setq wttrin--force-refresh nil))
+  (setq wttrin--force-refresh nil)
+  (setq wttrin--favorite-override nil)
+  (setq wttrin--saved-locations-runtime nil)
+  (when (file-exists-p wttrin-state-file)
+    (delete-file wttrin-state-file)))
 
 (provide 'testutil-wttrin)
 ;;; testutil-wttrin.el ends here

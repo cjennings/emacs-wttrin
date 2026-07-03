@@ -64,15 +64,18 @@ with `d' reverted to the init value on restart."
     (should (equal "New Orleans, LA" wttrin-favorite-location))
     (should (equal "Paris, FR" (wttrin--favorite-location)))))
 
-;;; savehist registration targets the runtime vars, not the config defcustoms
+;;; savehist registration covers only the scrub-tolerant search history;
+;;; the runtime vars persist in `wttrin-state-file' (see test-wttrin-state-file.el)
 
-(ert-deftest test-wttrin-favorite-override-normal-savehist-registers-override ()
-  "Normal: savehist persists the override, not the config defcustom."
+(ert-deftest test-wttrin-favorite-override-normal-savehist-excludes-runtime-vars ()
+  "Normal: savehist persists neither the runtime vars nor the config defcustoms.
+The runtime favorite and directory live in `wttrin-state-file' — a savehist
+entry would be scrubbed by any session that saves savehist without wttrin."
   (require 'savehist)
   (let ((savehist-additional-variables '(kill-ring)))
     (wttrin--savehist-register)
-    (should (memq 'wttrin--favorite-override savehist-additional-variables))
-    (should (memq 'wttrin--saved-locations-runtime savehist-additional-variables))
+    (should-not (memq 'wttrin--favorite-override savehist-additional-variables))
+    (should-not (memq 'wttrin--saved-locations-runtime savehist-additional-variables))
     (should-not (memq 'wttrin-favorite-location savehist-additional-variables))
     (should-not (memq 'wttrin-saved-locations savehist-additional-variables))))
 

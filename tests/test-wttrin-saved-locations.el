@@ -159,13 +159,14 @@ Two names with the same query share a key; the name never leaks into the key."
 
 ;;; savehist
 
-(ert-deftest test-wttrin-saved-locations-integration-savehist-registers ()
-  "Integration: the runtime directory is registered for savehist persistence,
-not the `wttrin-saved-locations' defcustom (which the user sets in init)."
+(ert-deftest test-wttrin-saved-locations-integration-savehist-excludes-runtime ()
+  "Integration: the runtime directory is not registered with savehist.
+It persists in `wttrin-state-file' instead — a savehist entry would be
+scrubbed by any Emacs session that saves savehist without wttrin loaded."
   (require 'savehist)
   (let ((savehist-additional-variables '(kill-ring)))
     (wttrin--savehist-register)
-    (should (memq 'wttrin--saved-locations-runtime savehist-additional-variables))
+    (should-not (memq 'wttrin--saved-locations-runtime savehist-additional-variables))
     (should-not (memq 'wttrin-saved-locations savehist-additional-variables))))
 
 ;;; wttrin--coordinates-p

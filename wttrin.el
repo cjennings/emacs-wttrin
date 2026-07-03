@@ -238,24 +238,24 @@ coordinates.  For example:
    (\"Home\" . \"41.37,-71.83\"))
 
 A bare string S used anywhere a location is expected is shorthand for
-\(S . S) — name and query the same.  Persisted across sessions via
-`savehist-mode'; add entries interactively with \\[wttrin-save-location] or the
-`d' key in a weather buffer, or set this in your init."
+\(S . S) — name and query the same.  Entries added interactively with
+\\[wttrin-save-location] or the `d' key in a weather buffer are persisted in
+`wttrin-state-file'; entries set here in your init are re-read each start."
   :group 'wttrin
   :type '(alist :key-type (string :tag "Name")
                 :value-type (string :tag "Query")))
 
 (defvar wttrin--favorite-override nil
-  "Runtime favorite set by `d'/`wttrin-make-default' and the geolocation commands.
-Persisted across sessions via savehist.  When non-nil it shadows the configured
-`wttrin-favorite-location', so a favorite chosen at runtime survives a restart
-even when the user also sets `wttrin-favorite-location' in their init.  Carries
-the same tri-state shape as that option: nil (no override), a string, or t
-\(auto-detect).")
+  "Runtime favorite set by `d'/`wttrin-make-default' and geolocation commands.
+Persisted across sessions in `wttrin-state-file'.  When non-nil it shadows
+the configured `wttrin-favorite-location', so a favorite chosen at runtime
+survives a restart even when the user also sets `wttrin-favorite-location'
+in their init.  Carries the same tri-state shape as that option: nil (no
+override), a string, or t (auto-detect).")
 
 (defvar wttrin--saved-locations-runtime nil
   "Saved-location entries added at runtime via `d' or `wttrin-save-location'.
-Persisted across sessions via savehist.  Overlaid on the configured
+Persisted across sessions in `wttrin-state-file'.  Overlaid on the configured
 `wttrin-saved-locations' by `wttrin--saved-locations', runtime winning on a name
 collision, so directory edits survive a restart without being clobbered by an
 init that also sets `wttrin-saved-locations'.  An alist of (NAME . QUERY).")
@@ -272,10 +272,11 @@ during the resolution window.")
 
 (defun wttrin--favorite-location ()
   "Return the effective favorite: the runtime override, else the configured one.
-`wttrin--favorite-override' (set at runtime by `d' and the geolocation commands,
-persisted by savehist) wins over the `wttrin-favorite-location' defcustom, so a
-runtime choice is not clobbered by an init that also sets the option.  Carries
-the option's tri-state shape: nil, a string, or t."
+`wttrin--favorite-override' (set at runtime by `d' and the geolocation
+commands, persisted in `wttrin-state-file') wins over the
+`wttrin-favorite-location' defcustom, so a runtime choice is not clobbered
+by an init that also sets the option.  Carries the option's tri-state
+shape: nil, a string, or t."
   (or wttrin--favorite-override wttrin-favorite-location))
 
 (defun wttrin--resolve-favorite-location ()
@@ -646,24 +647,121 @@ Persisted across sessions via `savehist-mode'.")
 (defvar savehist-additional-variables)
 
 (defun wttrin--savehist-register ()
-  "Ensure wttrin's persisted runtime state is saved by savehist.
-Registers `wttrin--location-history', `wttrin--favorite-override', and
-`wttrin--saved-locations-runtime' so they survive across restarts without the
-Emacs custom-variable mechanism.  Deliberately registers the runtime override
-and runtime directory rather than the `wttrin-favorite-location' and
-`wttrin-saved-locations' defcustoms: those are configuration the user sets in
-init, and persisting them would fight the init on every restart (the value the
-user last chose with `d' would be clobbered by the init `setopt').
+  "Register the search history with savehist.
+Only `wttrin--location-history' rides savehist: it is scrub-tolerant
+throwaway data, which is what savehist is for.  The runtime favorite and
+runtime directory are deliberately NOT registered — savehist rewrites its
+whole file on every save keeping only currently-registered variables, so any
+Emacs process that saves savehist without wttrin loaded (a deferred-loading
+session where wttrin was never opened, a batch tool) would silently delete
+them.  Those live in `wttrin-state-file' instead, which only wttrin writes.
 Run both at load and on `savehist-save-hook', so the registration survives a
 user `setq' of `savehist-additional-variables' (a common config pattern) that
-would otherwise drop the entries before they could be saved."
-  (add-to-list 'savehist-additional-variables 'wttrin--location-history)
-  (add-to-list 'savehist-additional-variables 'wttrin--favorite-override)
-  (add-to-list 'savehist-additional-variables 'wttrin--saved-locations-runtime))
+would otherwise drop the entry before it could be saved."
+  (add-to-list 'savehist-additional-variables 'wttrin--location-history))
+
+;;;###autoload (with-eval-after-load 'savehist (add-to-list 'savehist-additional-variables 'wttrin--location-history))
 
 (with-eval-after-load 'savehist
   (wttrin--savehist-register)
   (add-hook 'savehist-save-hook #'wttrin--savehist-register))
+
+(defcustom wttrin-state-file (locate-user-emacs-file "wttrin-state.el")
+  "File persisting wttrin's runtime state across sessions.
+Holds the runtime favorite (`wttrin--favorite-override') and the runtime
+saved-locations directory (`wttrin--saved-locations-runtime') — the values
+written by `d'/`wttrin-make-default', `wttrin-save-location', and the
+geolocation commands.  A dedicated file rather than savehist because savehist
+rewrites its whole file keeping only the variables registered in the current
+process: any Emacs session that saved savehist without wttrin loaded would
+silently delete the persisted favorite.  Only wttrin writes this file.
+Customize this before wttrin loads (e.g. via use-package `:custom'); the
+state restores at load time, so a later `setq' takes effect only from the
+next restore (`savehist-mode-hook' or restart)."
+  :group 'wttrin
+  :type 'file)
+
+(defun wttrin--state-save ()
+  "Write the runtime favorite and directory to `wttrin-state-file'.
+Writes atomically (temp file + rename) so a crash mid-write cannot leave a
+truncated file, always as UTF-8 so the file round-trips regardless of the
+session's default coding system (the same reason savehist pins
+`savehist-coding-system').  Never signals: persistence failure must not
+break the location command that triggered it — it messages and moves on."
+  (condition-case err
+      (let* ((file (expand-file-name wttrin-state-file))
+             (dir (file-name-directory file))
+             (tmp (make-temp-name (concat file ".tmp")))
+             (coding-system-for-write 'utf-8-emacs)
+             (print-length nil)
+             (print-level nil))
+        (unless (file-directory-p dir) (make-directory dir t))
+        (unwind-protect
+            (progn
+              (with-temp-buffer
+                (insert ";; wttrin runtime state -- managed by wttrin;"
+                        " do not edit by hand.\n")
+                (prin1 (list :version 1
+                             :favorite-override wttrin--favorite-override
+                             :saved-locations wttrin--saved-locations-runtime)
+                       (current-buffer))
+                (insert "\n")
+                (write-region (point-min) (point-max) tmp nil 'silent))
+              (rename-file tmp file t)
+              (setq tmp nil))
+          ;; Any failure above leaves the temp file behind; remove it.  On
+          ;; success TMP is nil and there is nothing to clean.
+          (when (and tmp (file-exists-p tmp))
+            (delete-file tmp))))
+    (error (message "wttrin: could not save state to %s: %s"
+                    wttrin-state-file (error-message-string err)))))
+
+(defun wttrin--state-read ()
+  "Read `wttrin-state-file' and return its state plist, or nil.
+Returns nil when the file is absent, unreadable, or does not contain a
+versioned plist.  Reads with `read', never `eval', so the state file cannot
+execute code, and as UTF-8, matching how `wttrin--state-save' writes it.
+Never signals — a broken state file must not break load."
+  (when (file-readable-p wttrin-state-file)
+    (condition-case err
+        (with-temp-buffer
+          (let ((coding-system-for-read 'utf-8-emacs))
+            (insert-file-contents wttrin-state-file))
+          (let ((data (read (current-buffer))))
+            (if (and (listp data) (integerp (plist-get data :version)))
+                data
+              (message "wttrin: ignoring malformed state file %s"
+                       wttrin-state-file)
+              nil)))
+      (error (message "wttrin: could not read state file %s: %s"
+                      wttrin-state-file (error-message-string err))
+             nil))))
+
+(defun wttrin--state-load ()
+  "Restore the runtime favorite and directory from `wttrin-state-file'.
+An existing state file is authoritative: its values replace whatever is in
+memory, which is what defeats a later savehist restore of stale legacy
+entries (this function also runs on `savehist-mode-hook').  When the file
+does not exist but either variable is non-nil — savehist restored legacy
+values from a pre-state-file wttrin earlier in init — those values are
+adopted and written, migrating existing users with zero steps.  A corrupt
+file is left in place and ignored: vars keep their current values and no
+adoption write happens over it."
+  (let ((data (wttrin--state-read)))
+    (cond
+     (data
+      (setq wttrin--favorite-override (plist-get data :favorite-override))
+      (setq wttrin--saved-locations-runtime (plist-get data :saved-locations)))
+     ((and (not (file-exists-p wttrin-state-file))
+           (or wttrin--favorite-override wttrin--saved-locations-runtime))
+      (wttrin--state-save)))))
+
+;; Restore persisted state at load — but not in batch (CI, test runners,
+;; scripts), which stays hermetic by design.  The savehist-mode-hook entry
+;; re-asserts the state file after savehist restores, in case a savehist file
+;; still carrying legacy pre-state-file entries loads later in init.
+(unless noninteractive (wttrin--state-load))
+(add-hook 'savehist-mode-hook #'wttrin--state-load)
 
 (defconst wttrin--geolocation-sentinel "Current location (detect)"
   "Picker candidate that triggers geolocation detection.
@@ -760,9 +858,10 @@ Used to keep a raw geolocation fix out of history and to decide when the
 
 (defun wttrin--put-saved-location (name query)
   "Add or update NAME -> QUERY in the runtime directory; return the saved name.
-Writes `wttrin--saved-locations-runtime' (savehist-persisted), never the
-`wttrin-saved-locations' defcustom, so a runtime save is not clobbered by an
-init that also sets the option.  Trims NAME and QUERY.  Signals a `user-error'
+Writes `wttrin--saved-locations-runtime' (persisted in `wttrin-state-file'),
+never the `wttrin-saved-locations' defcustom, so a runtime save is not
+clobbered by an init that also sets the option.  Trims NAME and QUERY.
+Signals a `user-error'
 for an empty name or query, or a name equal to the geolocation sentinel.  An
 existing runtime name has its query updated."
   (let ((name (string-trim (or name "")))
@@ -774,6 +873,7 @@ existing runtime name has its query updated."
     (setq wttrin--saved-locations-runtime
           (append (wttrin--saved-locations-runtime-without name)
                   (list (cons name query))))
+    (wttrin--state-save)
     name))
 
 (defun wttrin--remove-saved-location (name)
@@ -782,7 +882,8 @@ Only the runtime layer `wttrin--saved-locations-runtime' is mutated.  An entry
 from the `wttrin-saved-locations' defcustom cannot be deleted here (it is
 re-read from the user's init) and remains in the effective directory."
   (setq wttrin--saved-locations-runtime
-        (wttrin--saved-locations-runtime-without name)))
+        (wttrin--saved-locations-runtime-without name))
+  (wttrin--state-save))
 
 (defvar-local wttrin--current-location nil
   "Query for the weather shown in this buffer (the fetch/cache identity).")
@@ -1523,12 +1624,12 @@ defcustom, so the choice survives a restart even when the user also sets the
 option in their init (the override shadows the config; see
 `wttrin--favorite-location').  LOCATION becomes a permanent default, so it no
 longer needs a history entry, mirroring how `wttrin-default-locations' entries
-are kept out of history.  Persistence is handled by `wttrin--savehist-register',
-which registers the override when savehist loads and again on
-`savehist-save-hook', so setting it works whether or not savehist is loaded."
+are kept out of history.  Persisted immediately to `wttrin-state-file', so the
+choice survives restarts regardless of savehist."
   (let ((changed (not (equal location (wttrin--favorite-location)))))
     (setq wttrin--favorite-override location)
     (setq wttrin--location-history (delete location wttrin--location-history))
+    (wttrin--state-save)
     (when (and changed (bound-and-true-p wttrin-mode-line-mode))
       (wttrin--mode-line-refresh-now))))
 

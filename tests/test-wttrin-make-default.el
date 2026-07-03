@@ -60,13 +60,14 @@ unbound); persistence is left to `wttrin--savehist-register'."
     (wttrin--set-favorite-location "Berkeley, CA")
     (should (equal wttrin--location-history '("Oslo, NO")))))
 
-(ert-deftest test-wttrin-favorite-savehist-register-includes-favorite ()
-  "Normal: `wttrin--savehist-register' registers the runtime override, not the
-`wttrin-favorite-location' defcustom."
+(ert-deftest test-wttrin-favorite-savehist-register-excludes-favorite ()
+  "Normal: `wttrin--savehist-register' does not register the runtime override.
+The favorite persists in `wttrin-state-file' instead — a savehist entry would
+be scrubbed by any Emacs session that saves savehist without wttrin loaded."
   (require 'savehist)
   (let ((savehist-additional-variables '(kill-ring)))
     (wttrin--savehist-register)
-    (should (memq 'wttrin--favorite-override savehist-additional-variables))
+    (should-not (memq 'wttrin--favorite-override savehist-additional-variables))
     (should-not (memq 'wttrin-favorite-location savehist-additional-variables))))
 
 ;;; --------------------------------------------------------------------------

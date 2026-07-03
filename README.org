@@ -108,7 +108,7 @@ Simply use the keybinding you assigned, or run `M-x wttrin` to display the weath
 
 Choose one, or for a quick one-time weather check, type a new location and ⏎ . After the weather is displayed, the footer shows two groups of keys. Keys that act on the view: `a` for another location, `g` to refresh, `q` to quit. Keys that act on your saved locations: `s` to save the shown location, `d` to make it your default, `r` to rename a saved location, and `x` to remove one.
 
-Pressing `d` makes the location on screen your default and remembers it across restarts (via savehist), so the mode-line and future sessions follow it. This works alongside a =wttrin-favorite-location= you set in your init: that option is your base default, and a location you promote with `d` overrides it and persists — so a `d` choice is never wiped out by the init value on the next restart. Your default is also offered in the location list the next time you run =M-x wttrin=. Enable =savehist-mode= for the persistence to stick. (On a geolocation-detected buffer, `d` first prompts for a name and saves it — see Naming Locations.)
+Pressing `d` makes the location on screen your default and remembers it across restarts, so the mode-line and future sessions follow it. This works alongside a =wttrin-favorite-location= you set in your init: that option is your base default, and a location you promote with `d` overrides it and persists — so a `d` choice is never wiped out by the init value on the next restart. Your default is also offered in the location list the next time you run =M-x wttrin=. Persistence is automatic: wttrin keeps your default and saved locations in its own small state file (=wttrin-state-file=, in your Emacs directory by default) — nothing to enable. (On a geolocation-detected buffer, `d` first prompts for a name and saves it — see Naming Locations.)
 
 If you're looking at cached data, a line below the weather art tells you how old it is (e.g., "Last updated: 2:30 PM (5 minutes ago)").
 
@@ -254,6 +254,8 @@ The mode-line shows a color emoji (☀️ 🌧️ ⛅ etc.) that updates hourly.
 
 If a refresh fails, the emoji dims to gray and the tooltip tells you what went wrong and when it'll retry. Once the connection comes back, everything returns to normal on its own.
 
+The tooltip can also include a short forecast. Set =wttrin-mode-line-tooltip-forecast-days= to a positive number and the tooltip appends one line per day — Today, Tomorrow, then the weekday — with the day's low–high temperatures and midday conditions. wttr.in's feed carries at most three days, so larger values are capped at three. The default (0) keeps the tooltip current-conditions-only; when enabled, each refresh performs a second, small JSON fetch for the forecast data, and a failed forecast fetch never disturbs the current-conditions display.
+
 **** Customization
 
 #+begin_src emacs-lisp
@@ -275,6 +277,9 @@ If a refresh fails, the emoji dims to gray and the tooltip tells you what went w
   ;; How long to wait before the first fetch (1-10 seconds, default 3)
   ;; Useful if your network is slow to come up after Emacs starts
   (setq wttrin-mode-line-startup-delay 5)
+
+  ;; Append a multi-day forecast to the tooltip (0 = off, max 3 days)
+  (setq wttrin-mode-line-tooltip-forecast-days 3)
 #+end_src
 
 *Note:* If the weather emoji appears as a monochrome symbol instead of a color icon, try setting `wttrin-mode-line-emoji-font` to match a color emoji font installed on your system. Use `M-x fc-list` or check your system fonts to see what's available.
@@ -284,7 +289,7 @@ If you don't want to type your city by hand, wttrin can detect it for you.
 
 *From the picker (weather here, right now):* run =M-x wttrin= and pick the first entry, "Current location (detect)". wttrin looks up your city via IP geolocation and shows its weather. If the guess is wrong (VPN, mobile hotspot), the detected city is right there in the buffer header, so just open the picker again and type the correct city.
 
-*Make the detected city your default:* in that weather buffer, press =d=. The detected city becomes your default (what the mode-line tracks), overriding any =wttrin-favorite-location= you set in your init. With =savehist-mode= on, the choice persists across sessions automatically, since wttrin registers it with savehist. No =customize-save-variable= step is needed.
+*Make the detected city your default:* in that weather buffer, press =d=. The detected city becomes your default (what the mode-line tracks), overriding any =wttrin-favorite-location= you set in your init. The choice persists across sessions automatically via wttrin's state file. No =customize-save-variable= step is needed.
 
 *Always use my current location:* run =M-x wttrin-use-current-location=, or set the variable directly:
 
@@ -349,13 +354,13 @@ Or build the directory interactively:
 - =M-x wttrin-rename-location= — rename an entry (refused if the new name is already taken).
 - =M-x wttrin-remove-location= — remove an entry (asks to confirm).
 
-The directory persists across sessions with =savehist-mode= on (=wttrin= registers it), the same as your favorite and history.
+The directory persists across sessions automatically, alongside your default, in wttrin's state file. (Search history is separate — it rides =savehist-mode=; see Location History.)
 
 You can point =wttrin-favorite-location= at a saved name (e.g. ="Craig's House"=): the mode-line resolves it to the query for fetching but shows the name in the tooltip.
 
 When you pick "Current location (detect)" and press =d= to keep it, =wttrin= prompts for a name (prefilled with the detected address) and saves it as a named location, then makes it your default. Clear the field and press RET to keep the raw coordinates instead. Raw coordinates never clutter your history; only named places are remembered.
 
-*Privacy:* a saved query can be a home or work street address, kept in plaintext in your savehist file. With =wttrin-debug= on, the query and raw responses are also written to the debug log. =wttrin= does not encrypt or redact these, so save what you're comfortable storing in plain text.
+*Privacy:* a saved query can be a home or work street address, kept in plaintext in =wttrin-state-file= (and, for search history, your savehist file). With =wttrin-debug= on, the query and raw responses are also written to the debug log. =wttrin= does not encrypt or redact these, so save what you're comfortable storing in plain text.
 
 *** Theming the Faces
 The text wttrin draws itself uses named faces, so themes and =M-x customize-face= can restyle it. (The weather art itself is colored by the ANSI codes wttr.in returns, not by these faces.)
