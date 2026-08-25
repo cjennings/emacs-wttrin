@@ -254,5 +254,123 @@ vars; only the scrub-tolerant search history stays with savehist."
     (should-not (memq 'wttrin--saved-locations-runtime
                       savehist-additional-variables))))
 
+;;; --------------------------------------------------------------------------
+;;; Path customization after load (`:set' on `wttrin-state-file')
+;;; --------------------------------------------------------------------------
+
+(defmacro test-wttrin-state-file--with-path-sandbox (&rest body)
+  "Run BODY with a fresh temp PATH bound and the state vars isolated.
+`wttrin-state-file' is let-bound to itself so a `customize-set-variable'
+inside BODY is undone on exit; the `customized-value' property and the temp
+file are cleaned up afterward."
+  (declare (indent 0))
+  `(let ((path (expand-file-name
+                (format "wttrin-test-state-%s.el" (random 1000000))
+                temporary-file-directory))
+         (wttrin-state-file wttrin-state-file)
+         (wttrin--favorite-override nil)
+         (wttrin--saved-locations-runtime nil))
+     (unwind-protect
+         (progn ,@body)
+       (put 'wttrin-state-file 'customized-value nil)
+       (when (file-exists-p path)
+         (delete-file path)))))
+
+(ert-deftest test-wttrin-state-file-normal-set-property-wired ()
+  "Normal: `wttrin-state-file' carries the `:set' handler, so `setopt',
+`customize-set-variable', and Customize all route through it."
+  (should (eq (get 'wttrin-state-file 'custom-set) #'wttrin--state-file-set)))
+
+(ert-deftest test-wttrin-state-file-normal-set-after-load-restores-from-new-path ()
+  "Normal: customizing the path after load restores state from the new file.
+This is the use-package `:config' shape — `(setopt wttrin-state-file ...)'
+after `(require 'wttrin)' — where the load-time restore has already read the
+default path and would otherwise never see the file the setter writes."
+  (test-wttrin-state-file--with-path-sandbox
+    (let ((wttrin-state-file path)
+          (wttrin--favorite-override "Salt Lake City, Utah")
+          (wttrin--saved-locations-runtime '(("SLC" . "40.65,-111.87"))))
+      (wttrin--state-save))
+    (customize-set-variable 'wttrin-state-file path)
+    (should (equal wttrin-state-file path))
+    (should (equal wttrin--favorite-override "Salt Lake City, Utah"))
+    (should (equal wttrin--saved-locations-runtime '(("SLC" . "40.65,-111.87"))))))
+
+(ert-deftest test-wttrin-state-file-normal-set-refreshes-mode-line-on-change ()
+  "Normal: when the restore changes the effective favorite and the mode-line
+mode is on, the mode-line is refreshed so it shows the restored city."
+  (test-wttrin-state-file--with-path-sandbox
+    (let ((wttrin-state-file path)
+          (wttrin--favorite-override "Restored, UT"))
+      (wttrin--state-save))
+    (let ((refreshes 0)
+          (wttrin-favorite-location "Configured, LA")
+          (wttrin-mode-line-mode t))
+      (cl-letf (((symbol-function 'wttrin--mode-line-refresh-now)
+                 (lambda () (setq refreshes (1+ refreshes)))))
+        (customize-set-variable 'wttrin-state-file path))
+      (should (= refreshes 1)))))
+
+(ert-deftest test-wttrin-state-file-boundary-set-same-favorite-no-refresh ()
+  "Boundary: a restore that leaves the effective favorite unchanged does not
+refresh the mode-line."
+  (test-wttrin-state-file--with-path-sandbox
+    (let ((wttrin-state-file path)
+          (wttrin--favorite-override "Same, UT"))
+      (wttrin--state-save))
+    (let ((refreshes 0)
+          (wttrin--favorite-override "Same, UT")
+          (wttrin-mode-line-mode t))
+      (cl-letf (((symbol-function 'wttrin--mode-line-refresh-now)
+                 (lambda () (setq refreshes (1+ refreshes)))))
+        (customize-set-variable 'wttrin-state-file path))
+      (should (= refreshes 0)))))
+
+(ert-deftest test-wttrin-state-file-boundary-set-mode-line-off-no-refresh ()
+  "Boundary: a favorite change with the mode-line mode off does not refresh."
+  (test-wttrin-state-file--with-path-sandbox
+    (let ((wttrin-state-file path)
+          (wttrin--favorite-override "Restored, UT"))
+      (wttrin--state-save))
+    (let ((refreshes 0)
+          (wttrin-mode-line-mode nil))
+      (cl-letf (((symbol-function 'wttrin--mode-line-refresh-now)
+                 (lambda () (setq refreshes (1+ refreshes)))))
+        (customize-set-variable 'wttrin-state-file path))
+      (should (equal wttrin--favorite-override "Restored, UT"))
+      (should (= refreshes 0)))))
+
+(ert-deftest test-wttrin-state-file-boundary-set-absent-file-nil-vars-noop ()
+  "Boundary: customizing to a path with no file and nil vars only sets the
+path — nothing is restored and no file is created."
+  (test-wttrin-state-file--with-path-sandbox
+    (customize-set-variable 'wttrin-state-file path)
+    (should (equal wttrin-state-file path))
+    (should-not (file-exists-p path))
+    (should (null wttrin--favorite-override))))
+
+(ert-deftest test-wttrin-state-file-boundary-set-absent-file-adopts-vars ()
+  "Boundary: customizing to a path with no file while the vars hold values
+adopts them into the new file, the same contract as `wttrin--state-load'."
+  (test-wttrin-state-file--with-path-sandbox
+    (setq wttrin--favorite-override "Adopted, TX")
+    (customize-set-variable 'wttrin-state-file path)
+    (should (file-exists-p path))
+    (should (equal (plist-get (wttrin--state-read) :favorite-override)
+                   "Adopted, TX"))))
+
+(ert-deftest test-wttrin-state-file-error-set-corrupt-file-does-not-signal ()
+  "Error: customizing to a path holding a corrupt file sets the path, leaves
+the vars untouched, and does not signal."
+  (test-wttrin-state-file--with-path-sandbox
+    (with-temp-file path (insert "(((( not lisp"))
+    (setq wttrin--favorite-override "Kept, OK")
+    (should-not
+     (condition-case nil
+         (progn (customize-set-variable 'wttrin-state-file path) nil)
+       (error t)))
+    (should (equal wttrin-state-file path))
+    (should (equal wttrin--favorite-override "Kept, OK"))))
+
 (provide 'test-wttrin-state-file)
 ;;; test-wttrin-state-file.el ends here

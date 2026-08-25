@@ -666,6 +666,28 @@ would otherwise drop the entry before it could be saved."
   (wttrin--savehist-register)
   (add-hook 'savehist-save-hook #'wttrin--savehist-register))
 
+(defun wttrin--state-file-set (symbol value)
+  "Set SYMBOL (`wttrin-state-file') to VALUE and restore state from it.
+The `:set' handler for the option.  The load-time restore below runs against
+whatever path the option holds when wttrin loads, so a path customized
+afterward — the use-package `:config' shape, `(setopt wttrin-state-file ...)'
+after the require — would be written by the location commands but never
+read back on the next start.  Re-running `wttrin--state-load' here closes
+that gap for `setopt', `customize-set-variable', and Customize.  When the
+restore changes the effective favorite and the mode-line mode is on, the
+mode-line is refreshed so it shows the restored city rather than the
+configured one.  At definition time the loader is not yet defined, so the
+`fboundp' guard makes that first call a plain `set-default'; the load-time
+restore covers the initial read."
+  (let ((before (and (fboundp 'wttrin--favorite-location)
+                     (wttrin--favorite-location))))
+    (set-default symbol value)
+    (when (fboundp 'wttrin--state-load)
+      (wttrin--state-load)
+      (when (and (not (equal before (wttrin--favorite-location)))
+                 (bound-and-true-p wttrin-mode-line-mode))
+        (wttrin--mode-line-refresh-now)))))
+
 (defcustom wttrin-state-file (locate-user-emacs-file "wttrin-state.el")
   "File persisting wttrin's runtime state across sessions.
 Holds the runtime favorite (`wttrin--favorite-override') and the runtime
@@ -675,11 +697,14 @@ geolocation commands.  A dedicated file rather than savehist because savehist
 rewrites its whole file keeping only the variables registered in the current
 process: any Emacs session that saved savehist without wttrin loaded would
 silently delete the persisted favorite.  Only wttrin writes this file.
-Customize this before wttrin loads (e.g. via use-package `:custom'); the
-state restores at load time, so a later `setq' takes effect only from the
-next restore (`savehist-mode-hook' or restart)."
+The state restores at load time from this path.  Set the option with
+`setopt', `customize-set-variable', or Customize (use-package `:custom' or
+`:config' both work): changing it after wttrin has loaded re-reads the state
+from the new path.  A plain `setq' after load skips that restore and takes
+effect only from the next one (`savehist-mode-hook' or restart)."
   :group 'wttrin
-  :type 'file)
+  :type 'file
+  :set #'wttrin--state-file-set)
 
 (defun wttrin--state-save ()
   "Write the runtime favorite and directory to `wttrin-state-file'.
