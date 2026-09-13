@@ -532,8 +532,11 @@ ERROR-MSG has no class."
   "Return the wttr.in display flags for the weather-buffer request.
 Starts from `wttrin-display-options' and appends the F flag (\"do not show
 the Follow line\") when `wttrin-hide-follow-line' is non-nil and F is not
-already present, so the two controls compose without duplicating the flag."
-  (let ((opts (or wttrin-display-options "")))
+already present, so the two controls compose without duplicating the flag.
+The match is case-sensitive, because wttr.in treats q and Q as
+different flags."
+  (let ((opts (or wttrin-display-options ""))
+        (case-fold-search nil))
     (if (and wttrin-hide-follow-line (not (string-match-p "F" opts)))
         (concat opts "F")
       opts)))

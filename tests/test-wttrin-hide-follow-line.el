@@ -51,6 +51,31 @@
         (wttrin-hide-follow-line nil))
     (should (equal (wttrin--effective-display-options) ""))))
 
+;; wttr.in flags are case-sensitive (q and Q differ), and string-match-p
+;; honours `case-fold-search', which defaults to t.  A lowercase f must not
+;; read as the F flag, whatever the caller's case-fold setting is.
+(ert-deftest test-wttrin--effective-display-options-boundary-lowercase-f-is-not-f ()
+  "Boundary: a lowercase f in the options does not count as the F flag."
+  (let ((wttrin-display-options "0f")
+        (wttrin-hide-follow-line t)
+        (case-fold-search t))
+    (should (equal (wttrin--effective-display-options) "0fF"))))
+
+(ert-deftest test-wttrin--effective-display-options-boundary-case-fold-nil-same-result ()
+  "Boundary: the result does not depend on the caller's `case-fold-search'."
+  (let ((wttrin-display-options "0f")
+        (wttrin-hide-follow-line t)
+        (case-fold-search nil))
+    (should (equal (wttrin--effective-display-options) "0fF"))))
+
+;;; Error Cases
+
+(ert-deftest test-wttrin--effective-display-options-error-non-string-options ()
+  "Error: a non-string options value signals rather than building a bad URL."
+  (let ((wttrin-display-options 'bogus)
+        (wttrin-hide-follow-line t))
+    (should-error (wttrin--effective-display-options) :type 'wrong-type-argument)))
+
 ;;; --------------------------------------------------------------------------
 ;;; wttrin--build-url integration
 ;;; --------------------------------------------------------------------------
