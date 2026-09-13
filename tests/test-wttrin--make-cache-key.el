@@ -62,6 +62,25 @@ Without this, changing the forecast format keeps serving the old cached output."
     (should-not (string= a c))
     (should-not (string= b c))))
 
+;; wttrin-hide-follow-line changes the request (it adds the F flag), so it
+;; has to change the key too.  Keying on the raw options string missed it and
+;; served a cached buffer that still showed the Follow line.
+(ert-deftest test-wttrin--make-cache-key-boundary-hide-follow-line-changes-key ()
+  "Boundary: turning `wttrin-hide-follow-line' on or off yields a distinct key."
+  (let ((off (let ((wttrin-display-options nil) (wttrin-hide-follow-line nil))
+               (wttrin--make-cache-key "Paris")))
+        (on (let ((wttrin-display-options nil) (wttrin-hide-follow-line t))
+              (wttrin--make-cache-key "Paris"))))
+    (should-not (string= off on))))
+
+(ert-deftest test-wttrin--make-cache-key-boundary-equivalent-requests-share-key ()
+  "Boundary: the toggle and an explicit F flag send one request, so one key."
+  (let ((toggle (let ((wttrin-display-options nil) (wttrin-hide-follow-line t))
+                  (wttrin--make-cache-key "Paris")))
+        (flag (let ((wttrin-display-options "F") (wttrin-hide-follow-line nil))
+                (wttrin--make-cache-key "Paris"))))
+    (should (string= toggle flag))))
+
 (ert-deftest test-wttrin--make-cache-key-boundary-language-changes-key ()
   "Boundary: changing Accept-Language yields a distinct key."
   (let ((en (let ((wttrin-default-languages '("Accept-Language" . "en-US")))

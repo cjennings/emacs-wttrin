@@ -1522,10 +1522,12 @@ coordinates from a geolocation command."
 (defun wttrin--make-cache-key (location)
   "Create a cache key from LOCATION and every setting that shapes the response.
 Includes the unit system, display options, and Accept-Language, so changing any
-of them produces a distinct key rather than serving a stale-format response."
+of them produces a distinct key rather than serving a stale-format response.
+The display options are the effective ones sent to wttr.in, so
+`wttrin-hide-follow-line' changes the key and an equivalent request shares it."
   (format "%S" (list location
                       (or wttrin-unit-system "default")
-                      (or wttrin-display-options "")
+                      (wttrin--effective-display-options)
                       wttrin-default-languages)))
 
 (defun wttrin--get-cached-or-fetch (location callback)
